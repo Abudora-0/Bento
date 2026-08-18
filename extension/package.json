@@ -1,0 +1,40 @@
+{
+  "name": "bento-extension",
+  "displayName": "Bento",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capture the tab you are looking at onto a contact sheet, and into your Bento tray.",
+  "author": "Bento",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "icon": "node scripts/make-icon.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.1.1",
+    "@fontsource/oswald": "^5.1.1",
+    "@supabase/supabase-js": "^2.47.10",
+    "plasmo": "0.90.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.297",
+    "@types/node": "^22.10.7",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "typescript": "^5.7.3"
+  },
+  "manifest": {
+    "name": "Bento",
+    "permissions": ["activeTab", "tabs", "storage"],
+    "commands": {
+      "quick-capture": {
+        "suggested_key": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" },
+        "description": "Capture the current tab into Bento"
+      }
+    }
+  }
+}

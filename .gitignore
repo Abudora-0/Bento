@@ -1,0 +1,46 @@
+# Project context file, intentionally never committed
+CLAUDE.md
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Builds
+.next/
+out/
+build/
+dist/
+website/.next/
+website/out/
+extension/build/
+extension/.plasmo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Misc
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+
+# Local editor and tooling config
+.claude/

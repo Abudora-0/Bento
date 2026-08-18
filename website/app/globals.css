@@ -1,0 +1,265 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Bento, lacquerware direction.
+   A lacquered bento tray: deep oxblood and black urushi, gold trim, and
+   compartments of rice cream in varying sizes.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  /* Palette */
+  --color-lacquer: #100b0b;
+  --color-lacquer-deep: #060404;
+  --color-lacquer-raise: #1d1312;
+  --color-oxblood: #5b1519;
+  --color-oxblood-deep: #3a0c0f;
+  --color-oxblood-lit: #7e2024;
+  --color-rice: #f3e9d6;
+  --color-rice-deep: #e7dac2;
+  --color-rice-shade: #d5c3a3;
+  --color-matcha: #6d7f4a;
+  --color-matcha-lit: #8ea364;
+  --color-gold: #c9a24a;
+  --color-gold-soft: #e0c483;
+  --color-ink: #241a17;
+  --color-ink-soft: #5f5049;
+
+  /* Type. The faces are self hosted, see the imports in app/layout.tsx. */
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Lacquer joinery */
+  --radius-tray: 1.5rem;
+  --radius-cell: 0.7rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-lacquer-deep);
+    color: var(--color-rice);
+    font-family: var(--font-body);
+    /* Urushi depth: a warm oxblood bloom sitting under black lacquer. */
+    background-image:
+      radial-gradient(120% 70% at 50% -10%, rgba(126, 32, 36, 0.42) 0%, rgba(16, 11, 11, 0) 62%),
+      radial-gradient(90% 60% at 12% 110%, rgba(109, 127, 74, 0.13) 0%, rgba(16, 11, 11, 0) 58%),
+      linear-gradient(180deg, #120c0c 0%, #060404 100%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: var(--color-gold);
+    color: var(--color-lacquer-deep);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Gold hairline scrollbar so the chrome stays in the same material world. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(201, 162, 74, 0.35) transparent;
+  }
+}
+
+@layer components {
+  /* The tray itself: lacquered panel with an inlaid gold rim. */
+  .tray {
+    position: relative;
+    border-radius: var(--radius-tray);
+    background:
+      linear-gradient(158deg, rgba(126, 32, 36, 0.5) 0%, rgba(58, 12, 15, 0.86) 44%, rgba(9, 6, 6, 0.95) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(224, 196, 131, 0.24),
+      inset 0 0 0 1px rgba(201, 162, 74, 0.22),
+      inset 0 28px 60px -30px rgba(255, 214, 150, 0.14),
+      0 34px 70px -32px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Lacquer sheen, a soft diagonal highlight across the tray surface. */
+  .tray::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(122deg, rgba(255, 235, 205, 0.07) 0%, rgba(255, 235, 205, 0) 34%);
+  }
+
+  /* A compartment. Rice cream ground, gold trim, faint bevel. */
+  .cell {
+    position: relative;
+    border-radius: var(--radius-cell);
+    background: linear-gradient(178deg, var(--color-rice) 0%, var(--color-rice-deep) 100%);
+    color: var(--color-ink);
+    box-shadow:
+      0 0 0 1px rgba(201, 162, 74, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(160, 132, 92, 0.28),
+      0 12px 26px -16px rgba(0, 0, 0, 0.85);
+    transition: transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1),
+                box-shadow 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .cell:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(201, 162, 74, 0.95),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 20px 34px -18px rgba(0, 0, 0, 0.9);
+  }
+
+  /* A compartment left empty, showing the lacquer floor of the tray. */
+  .cell-empty {
+    border-radius: var(--radius-cell);
+    background:
+      repeating-linear-gradient(135deg, rgba(201, 162, 74, 0.05) 0 6px, rgba(201, 162, 74, 0) 6px 13px),
+      rgba(6, 4, 4, 0.4);
+    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.16);
+  }
+
+  /* The thin gold lacquer seam between compartments. */
+  .seam {
+    height: 1px;
+    background: linear-gradient(90deg,
+      rgba(201, 162, 74, 0) 0%,
+      rgba(201, 162, 74, 0.5) 18%,
+      rgba(201, 162, 74, 0.5) 82%,
+      rgba(201, 162, 74, 0) 100%);
+  }
+
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* Lacquer button, a raised black piece with a gold edge. */
+  .btn-lacquer {
+    font-family: var(--font-body);
+    font-weight: 500;
+    border-radius: 999px;
+    padding: 0.5rem 1.1rem;
+    color: var(--color-rice);
+    background: linear-gradient(180deg, var(--color-lacquer-raise) 0%, #0b0707 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(201, 162, 74, 0.45),
+      inset 0 1px 0 rgba(224, 196, 131, 0.2),
+      0 8px 18px -12px rgba(0, 0, 0, 0.9);
+    transition: box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  .btn-lacquer:hover:not(:disabled) {
+    box-shadow:
+      inset 0 0 0 1px rgba(201, 162, 74, 0.95),
+      inset 0 1px 0 rgba(224, 196, 131, 0.3),
+      0 10px 22px -12px rgba(0, 0, 0, 0.9);
+  }
+
+  .btn-lacquer:active:not(:disabled) { transform: translateY(1px); }
+  .btn-lacquer:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Vermilion seal button, the primary action. */
+  .btn-seal {
+    font-family: var(--font-body);
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.55rem 1.3rem;
+    color: var(--color-rice);
+    background: linear-gradient(180deg, var(--color-oxblood-lit) 0%, var(--color-oxblood-deep) 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(224, 196, 131, 0.55),
+      inset 0 1px 0 rgba(255, 226, 190, 0.35),
+      0 12px 24px -14px rgba(126, 32, 36, 0.9);
+    transition: filter 160ms ease, transform 160ms ease;
+  }
+
+  .btn-seal:hover:not(:disabled) { filter: brightness(1.12); }
+  .btn-seal:active:not(:disabled) { transform: translateY(1px); }
+  .btn-seal:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Inputs read as shallow lacquer wells. */
+  .field {
+    width: 100%;
+    font-family: var(--font-body);
+    color: var(--color-rice);
+    background: rgba(6, 4, 4, 0.55);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    box-shadow:
+      inset 0 0 0 1px rgba(201, 162, 74, 0.28),
+      inset 0 2px 6px rgba(0, 0, 0, 0.6);
+    transition: box-shadow 160ms ease;
+  }
+
+  .field::placeholder { color: rgba(243, 233, 214, 0.32); }
+
+  .field:focus {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px rgba(201, 162, 74, 0.85),
+      inset 0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Tag chips, small matcha lacquer beads. */
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    border-radius: 999px;
+    padding: 0.14rem 0.55rem;
+    color: #23301a;
+    background: linear-gradient(180deg, var(--color-matcha-lit) 0%, var(--color-matcha) 100%);
+    box-shadow: inset 0 0 0 1px rgba(35, 48, 26, 0.28);
+    white-space: nowrap;
+  }
+
+  .chip-quiet {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    border-radius: 999px;
+    padding: 0.14rem 0.55rem;
+    color: var(--color-rice);
+    background: rgba(243, 233, 214, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.3);
+    white-space: nowrap;
+  }
+}
+
+@layer utilities {
+  .clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
