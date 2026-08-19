@@ -1,4 +1,5 @@
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
+import { PAGE_SIZE } from "~/lib/pagination"
 
 /**
  * The tray is rendered on demand, so there is always a moment before the rows
@@ -27,15 +28,17 @@ export default function Loading() {
 
         <section className="tray mt-5 p-3 sm:p-5" aria-busy="true" aria-label="Loading your tray">
           <div className={`relative ${TRAY_GRID}`}>
-            {Array.from({ length: 9 }, (_, index) => (
+            {Array.from({ length: Math.min(PAGE_SIZE, 18) }, (_, index) => (
               <div
                 key={index}
                 className={`cell-empty animate-pulse ${compartment(index).className}`}
-                style={{ animationDelay: `${index * 70}ms` }}
+                style={{ animationDelay: `${(index % 9) * 70}ms` }}
               />
             ))}
           </div>
         </section>
+
+        <div className="mt-5 h-7 w-40 animate-pulse rounded-full bg-rice/[0.04]" aria-hidden />
       </main>
     </div>
   )

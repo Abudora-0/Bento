@@ -1,4 +1,10 @@
-/** Builds a /app URL with one or more filter params changed. */
+/**
+ * Builds a /app URL with one or more filter params changed.
+ *
+ * Changing a filter drops the page number, because page 4 of the old result set
+ * means nothing in the new one and landing on an empty tray after clicking a tag
+ * is baffling. Paging links pass "page" in the patch, which keeps it.
+ */
 export function trayHref(
   current: URLSearchParams | ReadonlyURLSearchParamsLike,
   patch: Record<string, string | null>
@@ -9,6 +15,8 @@ export function trayHref(
     if (value === null || value === "") next.delete(key)
     else next.set(key, value)
   }
+
+  if (!("page" in patch)) next.delete("page")
 
   const qs = next.toString()
   return qs ? `/app?${qs}` : "/app"

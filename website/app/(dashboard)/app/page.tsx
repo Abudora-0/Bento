@@ -3,8 +3,11 @@ import { redirect } from "next/navigation"
 
 import { BookmarkCell } from "~/components/BookmarkCell"
 import { FolderRail } from "~/components/FolderRail"
+import { Pagination } from "~/components/Pagination"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
+import { pageRange, parsePage, totalPages } from "~/lib/pagination"
+import { trayHref } from "~/lib/query"
 import { parseSort, sortOption } from "~/lib/sort"
 import { createClient } from "~/lib/supabase/server"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
@@ -18,6 +21,7 @@ type SearchParams = Promise<{
   folder?: string
   star?: string
   sort?: string
+  page?: string
 }>
 
 /** PostgREST reads commas and parentheses as syntax inside an or() filter. */
@@ -40,13 +44,20 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   const starredOnly = params.star === "1"
   const sort = parseSort(params.sort)
   const order = sortOption(sort)
+  const page = parsePage(params.page)
+  const [from, to] = pageRange(page)
 
   let query = supabase
     .from("bookmarks")
-    .select("*, folder:folders(id, name)")
+    // Exact count drives the page numbers. A personal tray is nowhere near the
+    // size where counting every matching row costs anything noticeable.
+    .select("*, folder:folders(id, name)", { count: "exact" })
     .eq("user_id", user.id)
     .order(order.column, { ascending: order.ascending })
-    .limit(500)
+    // A stable tiebreak, otherwise rows with an equal sort key can swap places
+    // between pages and you get one twice while never seeing another.
+    .order("id", { ascending: true })
+    .range(from, to)
 
   if (folder === "none") query = query.is("folder_id", null)
   else if (folder) query = query.eq("folder_id", folder)
@@ -55,7 +66,7 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   if (starredOnly) query = query.eq("starred", true)
   if (q) query = query.or(`title.ilike.%${q}%,url.ilike.%${q}%,notes.ilike.%${q}%`)
 
-  const [{ data: bookmarks, error: bookmarksError }, { data: folders }, { data: tagRows }] =
+  const [{ data: bookmarks, error: bookmarksError, count }, { data: folders }, { data: tagRows }] =
     await Promise.all([
       query,
       supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
@@ -64,6 +75,20 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
 
   const allFolders = (folders ?? []) as Folder[]
   const rows = (bookmarks ?? []) as unknown as BookmarkWithFolder[]
+
+  const total = count ?? 0
+  const lastPage = totalPages(total)
+
+  // Deleting the last few rows, or arriving on a bookmarked deep link, can put
+  // you past the end. Send them to the final page rather than an empty tray.
+  if (page > lastPage && total > 0) {
+    const carried = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === "string" && value !== "") carried.set(key, value)
+    }
+
+    redirect(trayHref(carried, { page: lastPage === 1 ? null : String(lastPage) }))
+  }
 
   // Tag counts across the whole tray, so the filter rail does not shrink as you filter.
   const tagCounts = new Map<string, number>()
@@ -85,7 +110,7 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           initialQuery={params.q ?? ""}
           topTags={topTags}
           activeTag={tag}
-          count={rows.length}
+          count={total}
           sort={sort}
           folders={allFolders}
           activeFolder={folder}
@@ -115,13 +140,21 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
                     className={shape.className}
                     tall={shape.tall}
                     wide={shape.wide}
-                    frame={index + 1}
+                    frame={from + index + 1}
                   />
                 )
               })}
             </div>
           )}
         </section>
+
+        <Pagination
+          page={page}
+          last={lastPage}
+          total={total}
+          from={total === 0 ? 0 : from + 1}
+          to={from + rows.length}
+        />
       </main>
     </div>
   )
