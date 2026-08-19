@@ -137,6 +137,7 @@ Website:
 ```bash
 npm run dev         # development server
 npm run build       # production build
+npm run test        # node:test, no framework needed
 npm run typecheck   # tsc --noEmit
 npm run lint
 ```
@@ -157,7 +158,7 @@ The toolbar icon is generated rather than committed as an opaque binary. `script
 
 Point Vercel at this repository and set the root directory to `website`. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_URL` (your deployed origin) as environment variables. The default build command is correct.
 
-Note that Shippori Mincho and Zen Kaku Gothic New ship a large number of unicode range subsets, so the first build spends a while fetching fonts. Only the weights actually used by the design are requested, which keeps that in check.
+Fonts are self hosted from Fontsource rather than fetched by `next/font/google`, so the build makes no network calls for them and a clean build takes about forty seconds. This is deliberate: Shippori Mincho and Zen Kaku Gothic New are split into numbered unicode range subsets that a `latin` filter does not narrow, and asking Google for them pulls over seven hundred files.
 
 ## Licence
 
