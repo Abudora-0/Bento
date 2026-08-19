@@ -11,6 +11,9 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // The Node test runner resolves ESM specifiers literally, so test files
+    // import "./format.ts" with the extension. Safe here because noEmit is on.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],

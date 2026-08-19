@@ -5,6 +5,7 @@ import { BookmarkCell } from "~/components/BookmarkCell"
 import { FolderRail } from "~/components/FolderRail"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
+import { parseSort, sortOption } from "~/lib/sort"
 import { createClient } from "~/lib/supabase/server"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
 
@@ -16,6 +17,7 @@ type SearchParams = Promise<{
   tag?: string
   folder?: string
   star?: string
+  sort?: string
 }>
 
 /** PostgREST reads commas and parentheses as syntax inside an or() filter. */
@@ -36,12 +38,14 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   const tag = (params.tag ?? "").trim().slice(0, 32)
   const folder = (params.folder ?? "").trim()
   const starredOnly = params.star === "1"
+  const sort = parseSort(params.sort)
+  const order = sortOption(sort)
 
   let query = supabase
     .from("bookmarks")
     .select("*, folder:folders(id, name)")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+    .order(order.column, { ascending: order.ascending })
     .limit(500)
 
   if (folder === "none") query = query.is("folder_id", null)
@@ -82,6 +86,9 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           topTags={topTags}
           activeTag={tag}
           count={rows.length}
+          sort={sort}
+          folders={allFolders}
+          activeFolder={folder}
         />
 
         {bookmarksError ? (
@@ -140,7 +147,7 @@ function EmptyTray({ filtering }: { filtering: boolean }) {
       <p className="mt-3 max-w-sm text-sm leading-relaxed text-rice/55">
         {filtering
           ? "No saved page matches those filters. Clear them to see the whole tray again."
-          : "Pin the Bento extension to your toolbar, open a page worth keeping and press capture. It lands here."}
+          : "Press Add to put one in by hand, or pin the Bento extension to your toolbar and capture the page you are on."}
       </p>
     </div>
   )

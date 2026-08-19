@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { parseTags } from "~/lib/format"
+import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
 import { createClient } from "~/lib/supabase/server"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
@@ -24,6 +24,75 @@ function refresh() {
 /* -------------------------------------------------------------------------- */
 /* Bookmarks                                                                   */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Saves a bookmark typed straight into the site, for when the extension is not
+ * installed or the page is one the browser will not let it capture.
+ *
+ * Re-saving an address you already have merges into that row rather than
+ * failing on the unique index, which is the same rule the extension follows.
+ */
+export async function createBookmark(formData: FormData): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await requireUser()
+
+    const url = normalizeUrl(String(formData.get("url") ?? ""))
+    if (!url) return { ok: false, error: "That does not look like a web address." }
+
+    const typedTitle = String(formData.get("title") ?? "").trim().slice(0, 500)
+    const title = typedTitle || hostnameOf(url)
+    const notes = String(formData.get("notes") ?? "").slice(0, 10000).trim()
+    const tags = parseTags(String(formData.get("tags") ?? ""))
+    const rawFolder = String(formData.get("folder_id") ?? "")
+    const folder_id = rawFolder === "" || rawFolder === "none" ? null : rawFolder
+
+    const { data: existing } = await supabase
+      .from("bookmarks")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("url", url)
+      .maybeSingle()
+
+    if (existing) {
+      const { error } = await supabase
+        .from("bookmarks")
+        .update({
+          title: typedTitle || existing.title,
+          tags: [...new Set([...existing.tags, ...tags])].slice(0, 12),
+          notes: notes || existing.notes,
+          folder_id: folder_id ?? existing.folder_id
+        })
+        .eq("id", existing.id)
+        .eq("user_id", user.id)
+
+      if (error) return { ok: false, error: error.message }
+
+      refresh()
+      return { ok: true }
+    }
+
+    const { error } = await supabase.from("bookmarks").insert({
+      user_id: user.id,
+      url,
+      title,
+      // Nothing to read a favicon or screenshot from when the address is typed.
+      // The compartment falls back to a lettered mark, which is by design.
+      favicon_url: null,
+      screenshot_url: null,
+      tags,
+      notes,
+      folder_id,
+      starred: false
+    })
+
+    if (error) return { ok: false, error: error.message }
+
+    refresh()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+}
 
 export async function updateBookmark(formData: FormData): Promise<ActionResult> {
   try {
