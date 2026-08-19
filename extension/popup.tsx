@@ -14,14 +14,17 @@ import {
   getActiveTab,
   grabScreenshot,
   hostnameOf,
+  lastFolder,
+  listFolders,
   parseTags,
   recentCaptures,
+  rememberFolder,
   saveCapture,
   setStarred,
   type ActiveTab
 } from "./lib/capture"
 import { supabase } from "./lib/supabase"
-import type { Bookmark } from "./lib/types"
+import type { Bookmark, Folder } from "./lib/types"
 
 const SITE_URL = (process.env.PLASMO_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "")
 
@@ -195,6 +198,9 @@ function Darkroom() {
   const [recent, setRecent] = useState<Bookmark[]>([])
   const [total, setTotal] = useState(0)
 
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [folderId, setFolderId] = useState<string | null>(null)
+
   const previewRef = useRef<string | null>(null)
 
   const refreshStrip = useCallback(async () => {
@@ -225,6 +231,13 @@ function Darkroom() {
         }
       }
 
+      const [rows, remembered] = await Promise.all([listFolders(), lastFolder()])
+      if (!active) return
+
+      setFolders(rows)
+      // A folder deleted on the website leaves a stale id behind here.
+      setFolderId(rows.some((f) => f.id === remembered) ? remembered : null)
+
       await refreshStrip()
     })()
 
@@ -247,7 +260,8 @@ function Darkroom() {
       faviconUrl: tab.faviconUrl,
       tags: parseTags(tags),
       notes,
-      screenshot: shot
+      screenshot: shot,
+      folderId
     })
 
     if (result.ok) {
@@ -308,6 +322,31 @@ function Darkroom() {
             <div className="frame-url">{tab.url}</div>
 
             <div className="stack">
+              <div className="filed-row">
+                <label className="filed-label" htmlFor="capture-folder">
+                  Filed under
+                </label>
+                <select
+                  id="capture-folder"
+                  className="field filed-select"
+                  value={folderId ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value || null
+                    setFolderId(next)
+                    // Persist immediately, so the keyboard shortcut agrees even
+                    // if this popup is closed without capturing.
+                    void rememberFolder(next)
+                  }}
+                >
+                  <option value="">Unfiled</option>
+                  {folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <input
                 className="field"
                 placeholder="tags, comma separated"
@@ -351,6 +390,7 @@ function Darkroom() {
               key={bookmark.id}
               bookmark={bookmark}
               number={total - index}
+              folderName={folders.find((f) => f.id === bookmark.folder_id)?.name ?? null}
               onToggle={() => toggleGrease(bookmark)}
             />
           ))
@@ -381,10 +421,12 @@ function Darkroom() {
 function StripFrame({
   bookmark,
   number,
+  folderName,
   onToggle
 }: {
   bookmark: Bookmark
   number: number
+  folderName: string | null
   onToggle: () => void
 }) {
   const host = hostnameOf(bookmark.url)
@@ -416,7 +458,10 @@ function StripFrame({
           >
             {bookmark.title || host}
           </a>
-          <div className="strip-meta">{host}</div>
+          <div className="strip-meta">
+            {host}
+            {folderName ? <span className="strip-folder">{folderName}</span> : null}
+          </div>
 
           {bookmark.tags.length > 0 ? (
             <div className="frame-tags">

@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import type { Bookmark } from "./types"
+import type { Bookmark, Folder } from "./types"
 
 /** Chrome will not let an extension screenshot its own pages or the store. */
 export function isCapturable(url: string | undefined): url is string {
@@ -86,6 +86,41 @@ export type CaptureInput = {
   tags: string[]
   notes: string
   screenshot: Blob | null
+  /** null files it under Unfiled. */
+  folderId: string | null
+}
+
+const LAST_FOLDER_KEY = "bento.lastFolderId"
+
+export async function listFolders(): Promise<Folder[]> {
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
+  if (!user) return []
+
+  const { data } = await supabase
+    .from("folders")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("name")
+
+  return data ?? []
+}
+
+/**
+ * The popup reopens empty every time, so the folder you are currently filing
+ * into has to live somewhere. The keyboard shortcut reads the same value, which
+ * keeps the two capture paths landing in the same place.
+ */
+export async function rememberFolder(id: string | null): Promise<void> {
+  if (id) await chrome.storage.local.set({ [LAST_FOLDER_KEY]: id })
+  else await chrome.storage.local.remove(LAST_FOLDER_KEY)
+}
+
+export async function lastFolder(): Promise<string | null> {
+  const result = await chrome.storage.local.get(LAST_FOLDER_KEY)
+  return (result[LAST_FOLDER_KEY] as string | undefined) ?? null
 }
 
 export type CaptureResult =
@@ -105,6 +140,24 @@ export async function saveCapture(input: CaptureInput): Promise<CaptureResult> {
 
   const url = input.url.trim()
   if (!isCapturable(url)) return { ok: false, error: "This page cannot be saved." }
+
+  // A folder deleted on the website leaves a stale id behind here. The database
+  // trigger would reject it outright, so check first and quietly fall back to
+  // unfiled rather than failing a capture over a filing detail.
+  let folderId = input.folderId
+  if (folderId) {
+    const { data: folder } = await supabase
+      .from("folders")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("id", folderId)
+      .maybeSingle()
+
+    if (!folder) {
+      folderId = null
+      await rememberFolder(null)
+    }
+  }
 
   const { data: existing } = await supabase
     .from("bookmarks")
@@ -129,7 +182,10 @@ export async function saveCapture(input: CaptureInput): Promise<CaptureResult> {
         favicon_url: input.faviconUrl ?? existing.favicon_url,
         screenshot_url: screenshotUrl ?? existing.screenshot_url,
         tags: mergedTags,
-        notes
+        notes,
+        // Leaving the picker on Unfiled does not drag a filed bookmark back out,
+        // matching what the website does when you re-save an address.
+        folder_id: folderId ?? existing.folder_id
       })
       .eq("id", existing.id)
       .select("*")
@@ -149,7 +205,7 @@ export async function saveCapture(input: CaptureInput): Promise<CaptureResult> {
       screenshot_url: screenshotUrl,
       tags: input.tags,
       notes: input.notes.trim().slice(0, 10000),
-      folder_id: null,
+      folder_id: folderId,
       starred: false
     })
     .select("*")

@@ -48,7 +48,7 @@ Row Level Security is on for both tables, and every policy keys off `auth.uid() 
 
 Two details worth knowing:
 
-- There is a unique index on `(user_id, url)`. Capturing a page you already saved merges into the existing row instead of making a duplicate, and the merge keeps your existing tags and note.
+- There is a unique index on `(user_id, url)`. Capturing a page you already saved merges into the existing row instead of making a duplicate, and the merge keeps your existing tags, note and folder.
 - A trigger checks that any `folder_id` you set actually belongs to you, which RLS alone would not catch.
 
 ## Setup
@@ -121,8 +121,9 @@ Under Authentication, URL Configuration in the Supabase dashboard, add `http://l
 
 Sign up on the website, then sign in with the same account inside the extension popup. The two share one database, that is the whole point.
 
-- **Capture**: click the Bento icon, add tags and a note if you want, press Capture. The popup grabs the title, URL, favicon and a screenshot of the visible part of the page.
-- **Quick capture**: `Ctrl+Shift+S` (`Cmd+Shift+S` on macOS) saves the current tab without opening the popup. The toolbar badge flashes to confirm.
+- **Capture**: click the Bento icon, pick a folder, add tags and a note if you want, press Capture. The popup grabs the title, URL, favicon and a screenshot of the visible part of the page.
+- **Quick capture**: `Ctrl+Shift+S` (`Cmd+Shift+S` on macOS) saves the current tab without opening the popup. It files into whichever folder the popup is currently set to, so the two agree. The toolbar badge flashes to confirm.
+- **Add by hand**: the site has an Add button, for pages the extension cannot reach or when it is not installed.
 - **Star**: click the grease pencil circle in the popup, or the vermilion seal on a compartment in the tray.
 - **Search**: press `/` anywhere on the tray to jump to the search field. It matches titles, addresses and notes.
 - **Filter**: click a tag chip, pick a folder in the left rail, or narrow to starred only.

@@ -338,6 +338,38 @@ textarea.field {
   margin-top: 8px;
 }
 
+/* Filing line. Reads like a label pencilled on the edge of the frame. */
+.filed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filed-label {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+}
+
+.filed-select {
+  flex: 1;
+  min-width: 0;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* The folder a frame was filed into, set off from the host by a thin divider. */
+.strip-folder {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(233, 229, 220, 0.18);
+  color: var(--silver);
+}
+
 /* The shutter release. */
 .shutter {
   width: 100%;

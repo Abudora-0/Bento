@@ -1,8 +1,11 @@
-import { getActiveTab, grabScreenshot, saveCapture } from "./lib/capture"
+import { getActiveTab, grabScreenshot, lastFolder, saveCapture } from "./lib/capture"
 
 /**
  * Quick capture, the keyboard shortcut path. No popup, no tags, no note, it
  * just exposes the frame and flashes the badge so you know it landed.
+ *
+ * It files into whichever folder the popup is currently set to, so the shortcut
+ * and the popup agree. saveCapture drops a folder that no longer exists.
  */
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "quick-capture") return
@@ -13,7 +16,7 @@ chrome.commands.onCommand.addListener(async (command) => {
     return
   }
 
-  const screenshot = await grabScreenshot(tab.windowId)
+  const [screenshot, folderId] = await Promise.all([grabScreenshot(tab.windowId), lastFolder()])
 
   const result = await saveCapture({
     url: tab.url,
@@ -21,7 +24,8 @@ chrome.commands.onCommand.addListener(async (command) => {
     faviconUrl: tab.faviconUrl,
     tags: [],
     notes: "",
-    screenshot
+    screenshot,
+    folderId
   })
 
   if (result.ok) await flashBadge(result.updated ? "+" : "1", "#4c6b3c")
