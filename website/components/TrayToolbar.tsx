@@ -4,8 +4,8 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
-import { SORT_OPTIONS, type SortKey } from "~/lib/sort"
 import { trayHref } from "~/lib/query"
+import { SORT_OPTIONS, type SortKey } from "~/lib/sort"
 import type { Folder } from "~/types/db"
 
 import { AddBookmarkDialog } from "./AddBookmarkDialog"
@@ -66,12 +66,15 @@ export function TrayToolbar({
   }, [])
 
   const hasFilters = Boolean(
-    searchParams.get("q") || searchParams.get("tag") || searchParams.get("folder") || searchParams.get("star")
+    searchParams.get("q") ||
+      searchParams.get("tag") ||
+      searchParams.get("folder") ||
+      searchParams.get("star")
   )
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[12rem] flex-1">
           <SearchIcon />
           <input
@@ -81,15 +84,15 @@ export function TrayToolbar({
             onChange={(e) => setValue(e.target.value)}
             placeholder="Search titles, addresses and notes"
             aria-label="Search your tray"
-            className="field pl-9! font-[family-name:var(--font-body)] text-sm"
+            className="field pl-9!"
           />
-          <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-[family-name:var(--font-mono)] text-[0.625rem] text-rice/25">
+          <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-[family-name:var(--font-mono)] text-[10px] text-silver-dim">
             /
           </kbd>
         </div>
 
         <label className="sr-only" htmlFor="tray-sort">
-          Order the tray
+          Order the sheet
         </label>
         <select
           id="tray-sort"
@@ -100,7 +103,7 @@ export function TrayToolbar({
               scroll: false
             })
           }}
-          className="field w-auto shrink-0 py-1.5! text-xs"
+          className="field w-auto shrink-0 cursor-pointer py-2! text-[11px]"
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option.key} value={option.key}>
@@ -109,14 +112,14 @@ export function TrayToolbar({
           ))}
         </select>
 
-        <button type="button" onClick={() => setAdding(true)} className="btn-seal shrink-0 py-1.5! text-sm">
+        <button type="button" onClick={() => setAdding(true)} className="shrink-0 shutter">
           Add
         </button>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span className="label-mono mr-1 text-rice/35">
-          {count} {count === 1 ? "piece" : "pieces"}
+        <span className="mr-1 frame-stamp">
+          {count} {count === 1 ? "frame" : "frames"}
         </span>
 
         {topTags.map(([tag, n]) => {
@@ -126,16 +129,16 @@ export function TrayToolbar({
               key={tag}
               href={trayHref(searchParams, { tag: active ? null : tag })}
               aria-pressed={active}
-              className={active ? "chip" : "chip-quiet hover:bg-rice/[0.12]!"}
+              className={active ? "tag tag-on" : "tag"}
             >
               {tag}
-              <span className={active ? "ml-1.5 opacity-55" : "ml-1.5 opacity-40"}>{n}</span>
+              <span className="ml-1.5 opacity-55">{n}</span>
             </Link>
           )
         })}
 
         {hasFilters ? (
-          <Link href="/app" className="label-mono ml-1 text-gold hover:text-gold-soft">
+          <Link href="/app" className="ml-1 ghost text-grease hover:text-grease-lit">
             Clear
           </Link>
         ) : null}
@@ -158,7 +161,7 @@ function SearchIcon() {
     <svg
       viewBox="0 0 16 16"
       aria-hidden
-      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rice/30"
+      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-silver-dim"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"

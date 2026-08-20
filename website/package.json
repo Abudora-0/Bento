@@ -2,7 +2,7 @@
   "name": "bento-website",
   "version": "1.0.0",
   "private": true,
-  "description": "Bento dashboard, a lacquerware bento tray for everything you have saved.",
+  "description": "Bento, a contact sheet for everything you have saved.",
   "engines": {
     "node": ">=22.5.0"
   },
@@ -12,12 +12,11 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-loader.mjs --test \"lib/**/*.test.ts\" \"app/**/*.test.ts\""
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-loader.mjs --test \"lib/**/*.test.ts\" \"app/**/*.test.ts\" \"*.test.ts\""
   },
   "dependencies": {
-    "@fontsource/shippori-mincho": "^5.3.0",
-    "@fontsource/space-mono": "^5.3.0",
-    "@fontsource/zen-kaku-gothic-new": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
     "next": "15.5.23",
     "react": "19.0.0",
     "react-dom": "19.0.0"

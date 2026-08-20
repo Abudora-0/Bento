@@ -35,30 +35,28 @@ export function BookmarkEditor({
   return (
     <Modal label={`Edit ${bookmark.title || host}`} onClose={onClose}>
       <ModalHeader
-        eyebrow="Compartment"
+        eyebrow="Frame"
         detail={
           <>
             {host}
-            <span className="text-rice/30">{prettyPath(bookmark.url)}</span>
+            <span className="text-silver-dim">{prettyPath(bookmark.url)}</span>
           </>
         }
         onClose={onClose}
       />
 
       {bookmark.screenshot_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={bookmark.screenshot_url}
-          alt=""
-          className="mt-4 h-36 w-full rounded-lg object-cover object-top shadow-[0_0_0_1px_rgba(201,162,74,0.35)]"
-        />
+        <div className="plate mt-4 h-36">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={bookmark.screenshot_url} alt="" />
+        </div>
       ) : null}
 
       <form action={onSubmit} className="mt-5 space-y-4">
         <input type="hidden" name="id" value={bookmark.id} />
 
         <div>
-          <label htmlFor="title" className="label-mono text-gold">
+          <label htmlFor="title" className="label">
             Title
           </label>
           <input
@@ -66,12 +64,12 @@ export function BookmarkEditor({
             name="title"
             defaultValue={bookmark.title}
             maxLength={500}
-            className="field mt-2 font-[family-name:var(--font-display)] text-[0.95rem]"
+            className="field mt-2 font-[family-name:var(--font-head)] text-[15px]"
           />
         </div>
 
         <div>
-          <label htmlFor="tags" className="label-mono text-gold">
+          <label htmlFor="tags" className="label">
             Tags
           </label>
           <input
@@ -79,19 +77,19 @@ export function BookmarkEditor({
             name="tags"
             defaultValue={bookmark.tags.join(", ")}
             placeholder="comma separated"
-            className="field mt-2 font-[family-name:var(--font-mono)] text-xs"
+            className="field mt-2"
           />
         </div>
 
         <div>
-          <label htmlFor="folder_id" className="label-mono text-gold">
-            Folder
+          <label htmlFor="folder_id" className="label">
+            Filed under
           </label>
           <select
             id="folder_id"
             name="folder_id"
             defaultValue={bookmark.folder_id ?? "none"}
-            className="field mt-2 text-sm"
+            className="field mt-2 cursor-pointer"
           >
             <option value="none">Unfiled</option>
             {folders.map((folder) => (
@@ -103,7 +101,7 @@ export function BookmarkEditor({
         </div>
 
         <div>
-          <label htmlFor="notes" className="label-mono text-gold">
+          <label htmlFor="notes" className="label">
             Note
           </label>
           <textarea
@@ -113,62 +111,52 @@ export function BookmarkEditor({
             defaultValue={bookmark.notes}
             maxLength={10000}
             placeholder="Why is this worth keeping?"
-            className="field mt-2 resize-y text-sm leading-relaxed"
+            className="field mt-2"
           />
         </div>
 
         {error ? (
-          <p role="alert" className="text-sm text-oxblood-lit">
+          <div role="alert" className="notice">
             {error}
-          </p>
+          </div>
         ) : null}
 
-        <div className="seam my-5!" />
+        <div className="section-rule pt-2">
+          <span>{isoDate(bookmark.created_at)}</span>
+        </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="label-mono text-rice/30">Saved {isoDate(bookmark.created_at)}</span>
-
-          <div className="flex items-center gap-2">
-            {confirmingDelete ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(false)}
-                  className="btn-lacquer py-1.5! text-xs"
-                >
-                  Keep
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    setError(null)
-                    startTransition(async () => {
-                      const result = await deleteBookmark(bookmark.id)
-                      if (result.ok) onClose()
-                      else setError(result.error)
-                    })
-                  }}
-                  className="btn-seal py-1.5! text-xs"
-                >
-                  Delete for good
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                  className="btn-lacquer py-1.5! text-xs"
-                >
-                  Delete
-                </button>
-                <button type="submit" disabled={pending} className="btn-seal py-1.5! text-sm">
-                  {pending ? "Saving" : "Save"}
-                </button>
-              </>
-            )}
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          {confirmingDelete ? (
+            <>
+              <button type="button" onClick={() => setConfirmingDelete(false)} className="ghost-btn">
+                Keep
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setError(null)
+                  startTransition(async () => {
+                    const result = await deleteBookmark(bookmark.id)
+                    if (result.ok) onClose()
+                    else setError(result.error)
+                  })
+                }}
+                className="shutter text-[11px]"
+              >
+                Delete for good
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setConfirmingDelete(true)} className="ghost-btn">
+                Delete
+              </button>
+              <button type="submit" disabled={pending} className="shutter">
+                {pending ? "Saving" : "Save"}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </Modal>

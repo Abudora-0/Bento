@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { pageWindow } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
 
+/** The frame counter. Which stretch of the roll is on screen. */
 export function Pagination({
   page,
   last,
@@ -21,8 +22,6 @@ export function Pagination({
   to: number
 }) {
   const searchParams = useSearchParams()
-
-  // Page one of one is not worth a control, but the count still is.
   const showControls = last > 1
 
   function href(target: number) {
@@ -31,11 +30,11 @@ export function Pagination({
 
   return (
     <nav
-      aria-label="Tray pages"
+      aria-label="Sheet pages"
       className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3"
     >
-      <p className="label-mono text-rice/35">
-        {total === 0 ? "Nothing to show" : `${from} to ${to} of ${total}`}
+      <p className="frame-stamp">
+        {total === 0 ? "Nothing exposed" : `${pad(from)} to ${pad(to)} of ${pad(total)}`}
       </p>
 
       {showControls ? (
@@ -49,7 +48,7 @@ export function Pagination({
               <span
                 key={`gap-${i}`}
                 aria-hidden
-                className="px-1 font-[family-name:var(--font-mono)] text-xs text-rice/25"
+                className="px-1 font-[family-name:var(--font-mono)] text-[11px] text-silver-dim"
               >
                 .....
               </span>
@@ -61,8 +60,8 @@ export function Pagination({
                 aria-current={n === page ? "page" : undefined}
                 className={
                   n === page
-                    ? "grid h-7 min-w-7 place-items-center rounded-full bg-oxblood-lit px-2 font-[family-name:var(--font-mono)] text-xs text-rice shadow-[inset_0_0_0_1px_rgba(224,196,131,0.55)]"
-                    : "grid h-7 min-w-7 place-items-center rounded-full px-2 font-[family-name:var(--font-mono)] text-xs text-rice/50 transition hover:bg-rice/[0.06] hover:text-rice"
+                    ? "grid h-7 min-w-7 place-items-center px-2 font-[family-name:var(--font-head)] text-[11px] tracking-[0.14em] text-grease shadow-[inset_0_0_0_1px_rgba(204,53,44,0.5)]"
+                    : "grid h-7 min-w-7 place-items-center px-2 font-[family-name:var(--font-mono)] text-[11px] text-silver-dim transition hover:bg-darkroom hover:text-print"
                 }
               >
                 {n}
@@ -79,6 +78,10 @@ export function Pagination({
   )
 }
 
+function pad(n: number): string {
+  return String(n).padStart(2, "0")
+}
+
 function Step({
   href,
   disabled,
@@ -92,11 +95,11 @@ function Step({
   label: string
   children: React.ReactNode
 }) {
-  const shape = "grid h-7 w-7 place-items-center rounded-full transition"
+  const shape = "grid h-7 w-7 place-items-center transition"
 
   if (disabled) {
     return (
-      <span aria-hidden className={`${shape} text-rice/15`}>
+      <span aria-hidden className={`${shape} text-silver-dim/40`}>
         {children}
       </span>
     )
@@ -107,7 +110,7 @@ function Step({
       href={href}
       rel={rel}
       aria-label={label}
-      className={`${shape} text-rice/55 hover:bg-rice/[0.06] hover:text-rice`}
+      className={`${shape} text-silver-dim hover:bg-darkroom hover:text-print`}
     >
       {children}
     </Link>

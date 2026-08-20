@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  website:
+    name: Website
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # node:sqlite needs to be available without an experimental flag.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install
+        working-directory: website
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: website
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: website
+        run: npm test
+
+      - name: Build
+        working-directory: website
+        env:
+          # The build must not need the real secret, but it does need one that
+          # passes the length check, since middleware is compiled during it.
+          BENTO_USER: ci
+          BENTO_SECRET: ci-build-secret-not-a-real-one
+        run: npm run build
+
+  extension:
+    name: Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install
+        working-directory: extension
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: extension
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: extension
+        run: npm run build

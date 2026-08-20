@@ -35,15 +35,11 @@ export function AddBookmarkDialog({
 
   return (
     <Modal label="Add a bookmark" onClose={onClose}>
-      <ModalHeader
-        eyebrow="New compartment"
-        detail="Paste an address, the rest is optional"
-        onClose={onClose}
-      />
+      <ModalHeader eyebrow="New frame" detail="Paste an address, the rest is optional" onClose={onClose} />
 
       <form action={onSubmit} className="mt-5 space-y-4">
         <div>
-          <label htmlFor="add-url" className="label-mono text-gold">
+          <label htmlFor="add-url" className="label">
             Address
           </label>
           <input
@@ -54,12 +50,12 @@ export function AddBookmarkDialog({
             autoComplete="off"
             spellCheck={false}
             placeholder="example.com/the-page"
-            className="field mt-2 font-[family-name:var(--font-mono)] text-xs"
+            className="field mt-2"
           />
         </div>
 
         <div>
-          <label htmlFor="add-title" className="label-mono text-gold">
+          <label htmlFor="add-title" className="label">
             Title
           </label>
           <input
@@ -67,31 +63,26 @@ export function AddBookmarkDialog({
             name="title"
             maxLength={500}
             placeholder="Left blank, the site name is used"
-            className="field mt-2 font-[family-name:var(--font-display)] text-[0.95rem]"
+            className="field mt-2 font-[family-name:var(--font-head)] text-[15px]"
           />
         </div>
 
         <div>
-          <label htmlFor="add-tags" className="label-mono text-gold">
+          <label htmlFor="add-tags" className="label">
             Tags
           </label>
-          <input
-            id="add-tags"
-            name="tags"
-            placeholder="comma separated"
-            className="field mt-2 font-[family-name:var(--font-mono)] text-xs"
-          />
+          <input id="add-tags" name="tags" placeholder="comma separated" className="field mt-2" />
         </div>
 
         <div>
-          <label htmlFor="add-folder" className="label-mono text-gold">
-            Folder
+          <label htmlFor="add-folder" className="label">
+            Filed under
           </label>
           <select
             id="add-folder"
             name="folder_id"
             defaultValue={defaultFolderId ?? "none"}
-            className="field mt-2 text-sm"
+            className="field mt-2 cursor-pointer"
           >
             <option value="none">Unfiled</option>
             {folders.map((folder) => (
@@ -103,7 +94,7 @@ export function AddBookmarkDialog({
         </div>
 
         <div>
-          <label htmlFor="add-notes" className="label-mono text-gold">
+          <label htmlFor="add-notes" className="label">
             Note
           </label>
           <textarea
@@ -112,29 +103,27 @@ export function AddBookmarkDialog({
             rows={3}
             maxLength={10000}
             placeholder="Why is this worth keeping?"
-            className="field mt-2 resize-y text-sm leading-relaxed"
+            className="field mt-2"
           />
         </div>
 
         {error ? (
-          <p role="alert" className="text-sm text-oxblood-lit">
+          <div role="alert" className="notice">
             {error}
-          </p>
+          </div>
         ) : null}
 
-        <div className="seam my-5!" />
+        <div className="section-rule pt-2">
+          <span>Saving twice merges</span>
+        </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="label-mono text-rice/30">Saving twice merges</span>
-
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={onClose} className="btn-lacquer py-1.5! text-xs">
-              Cancel
-            </button>
-            <button type="submit" disabled={pending} className="btn-seal py-1.5! text-sm">
-              {pending ? "Saving" : "Add to tray"}
-            </button>
-          </div>
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="ghost-btn">
+            Cancel
+          </button>
+          <button type="submit" disabled={pending} className="shutter">
+            {pending ? "Exposing" : "Expose"}
+          </button>
         </div>
       </form>
     </Modal>

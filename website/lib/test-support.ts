@@ -10,10 +10,12 @@ import { join } from "node:path"
  * test file's setup can race with it.
  */
 export const TEST_SECRET = "test-secret-do-not-use-elsewhere"
+export const TEST_USER = "test-user"
 
 export function setUpTempDataDir(): void {
   process.env.BENTO_DATA_DIR = mkdtempSync(join(tmpdir(), "bento-test-"))
   process.env.BENTO_SECRET = TEST_SECRET
+  process.env.BENTO_USER = TEST_USER
   process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000"
 }
 

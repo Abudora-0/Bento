@@ -1,243 +1,463 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Bento, lacquerware direction.
-   A lacquered bento tray: deep oxblood and black urushi, gold trim, and
-   compartments of rice cream in varying sizes.
+   Bento, contact sheet direction.
+
+   The same darkroom the extension popup lives in: unexposed film stock for a
+   ground, frames with sprocket holes down both edges, numbers in the gutter,
+   and a grease pencil circle on the keepers. The website keeps the bento box
+   compartment grid, so the frames come in varying sizes rather than a uniform
+   contact print, but everything filling them is the extension's vocabulary.
+
+   Two rules that are what actually make the two surfaces read as one product:
+   every border is an inset hairline, never a drop shadow, and nothing has a
+   border radius. Depth comes only from stepping up the alpha ladder below.
    --------------------------------------------------------------------------- */
 
 @theme {
-  /* Palette */
-  --color-lacquer: #100b0b;
-  --color-lacquer-deep: #060404;
-  --color-lacquer-raise: #1d1312;
-  --color-oxblood: #5b1519;
-  --color-oxblood-deep: #3a0c0f;
-  --color-oxblood-lit: #7e2024;
-  --color-rice: #f3e9d6;
-  --color-rice-deep: #e7dac2;
-  --color-rice-shade: #d5c3a3;
-  --color-matcha: #6d7f4a;
-  --color-matcha-lit: #8ea364;
+  /* Ground, three steps from deepest to raised */
+  --color-gutter: #050506;
+  --color-gutter-lit: #131315;
+  --color-darkroom: #0d0d0e;
+  --color-frame-live: #16161a;
+
+  /* Print */
+  --color-print: #e9e5dc;
+  --color-silver: #a9aaae;
+  --color-silver-dim: #6d6e72;
+
+  /* The single accent, plus its hover and a success green */
+  --color-grease: #cc352c;
+  --color-grease-lit: #e5493f;
+  --color-develop: #78965a;
+
+  /* The one piece of the old lacquer palette that survives, as trim only:
+     the focus ring and the wordmark rim. It is not a text colour any more. */
   --color-gold: #c9a24a;
-  --color-gold-soft: #e0c483;
-  --color-ink: #241a17;
-  --color-ink-soft: #5f5049;
 
-  /* Type. The faces are self hosted, see the imports in app/layout.tsx. */
-  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
-  --font-body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-head: "Oswald", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
 
-  /* Lacquer joinery */
-  --radius-tray: 1.5rem;
-  --radius-cell: 0.7rem;
+/* ---------------------------------------------------------------------------
+   The alpha ladder.
+
+   Every surface treatment in this design is cream over dark at one of a fixed
+   set of alphas, and a state change means moving one rung up the ladder, not
+   introducing a new colour. Naming the rungs keeps that legible instead of
+   scattering magic rgba literals through the stylesheet.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --line-hatch: rgba(233, 229, 220, 0.035);
+  --line-glow: rgba(233, 229, 220, 0.05);
+  --line-faint: rgba(233, 229, 220, 0.06);
+  --line-tag: rgba(233, 229, 220, 0.07);
+  --line-frame: rgba(233, 229, 220, 0.08);
+  --line-perf: rgba(233, 229, 220, 0.09);
+  --line-plate: rgba(233, 229, 220, 0.1);
+  --line-tag-edge: rgba(233, 229, 220, 0.12);
+  --line-field: rgba(233, 229, 220, 0.14);
+  --line-live: rgba(233, 229, 220, 0.16);
+  --line-divider: rgba(233, 229, 220, 0.18);
+  --line-focus: rgba(233, 229, 220, 0.4);
+
+  /* The sprocket lane. The extension hard codes 22px for a 398px popup, which
+     eats a quarter of a single column compartment on a phone. Frame padding
+     is written against this variable so the lane and the padding cannot drift. */
+  --rail: 12px;
+  --rail-w: 9px;
+
+  color-scheme: dark;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --rail: 22px;
+    --rail-w: 16px;
+  }
 }
 
 @layer base {
-  :root {
-    color-scheme: dark;
-  }
-
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   body {
-    background-color: var(--color-lacquer-deep);
-    color: var(--color-rice);
-    font-family: var(--font-body);
-    /* Urushi depth: a warm oxblood bloom sitting under black lacquer. */
-    background-image:
-      radial-gradient(120% 70% at 50% -10%, rgba(126, 32, 36, 0.42) 0%, rgba(16, 11, 11, 0) 62%),
-      radial-gradient(90% 60% at 12% 110%, rgba(109, 127, 74, 0.13) 0%, rgba(16, 11, 11, 0) 58%),
-      linear-gradient(180deg, #120c0c 0%, #060404 100%);
-    background-attachment: fixed;
+    background-color: var(--color-gutter);
+    color: var(--color-print);
+    font-family: var(--font-mono);
+    font-size: 13px;
     min-height: 100dvh;
+    /* One safelight, above and behind everything. The only light source. */
+    background-image: radial-gradient(120% 55% at 50% 0%, var(--line-glow) 0%, rgba(5, 5, 6, 0) 62%);
+    background-attachment: fixed;
   }
 
   ::selection {
-    background: var(--color-gold);
-    color: var(--color-lacquer-deep);
+    background: var(--color-grease);
+    color: var(--color-print);
   }
 
+  /* Gold survives here, where it does real work: it is the one colour on the
+     page that belongs to nothing else, so focus is never ambiguous. */
   *:focus-visible {
     outline: 2px solid var(--color-gold);
     outline-offset: 2px;
-    border-radius: 3px;
   }
 
-  /* Gold hairline scrollbar so the chrome stays in the same material world. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(201, 162, 74, 0.35) transparent;
+    scrollbar-color: var(--line-field) transparent;
   }
 }
 
 @layer components {
-  /* The tray itself: lacquered panel with an inlaid gold rim. */
-  .tray {
-    position: relative;
-    border-radius: var(--radius-tray);
-    background:
-      linear-gradient(158deg, rgba(126, 32, 36, 0.5) 0%, rgba(58, 12, 15, 0.86) 44%, rgba(9, 6, 6, 0.95) 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(224, 196, 131, 0.24),
-      inset 0 0 0 1px rgba(201, 162, 74, 0.22),
-      inset 0 28px 60px -30px rgba(255, 214, 150, 0.14),
-      0 34px 70px -32px rgba(0, 0, 0, 0.95);
+  /* --------------------------------------------------------------------------
+     The sheet. A panel of film stock that frames sit on.
+     -------------------------------------------------------------------------- */
+  .sheet {
+    background: var(--color-gutter);
+    box-shadow: inset 0 0 0 1px var(--line-frame);
   }
 
-  /* Lacquer sheen, a soft diagonal highlight across the tray surface. */
-  .tray::after {
+  /* --------------------------------------------------------------------------
+     A frame. The compartment, now a piece of film.
+     -------------------------------------------------------------------------- */
+  .frame {
+    position: relative;
+    background: var(--color-darkroom);
+    box-shadow: inset 0 0 0 1px var(--line-frame);
+    padding: 8px var(--rail);
+    transition:
+      box-shadow 200ms ease,
+      transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  /* The two sprocket rails. The gradient paints the film stock between the
+     holes, so the holes are the transparent bands showing the frame through. */
+  .frame::before,
+  .frame::after {
     content: "";
     position: absolute;
-    inset: 0;
-    border-radius: inherit;
+    top: 0;
+    bottom: 0;
+    width: var(--rail-w);
+    background-image: repeating-linear-gradient(
+      180deg,
+      transparent 0 5px,
+      rgba(5, 5, 6, 0.96) 5px 14px,
+      transparent 14px 19px
+    );
+    background-position: 0 4px;
     pointer-events: none;
-    background: linear-gradient(122deg, rgba(255, 235, 205, 0.07) 0%, rgba(255, 235, 205, 0) 34%);
   }
 
-  /* A compartment. Rice cream ground, gold trim, faint bevel. */
-  .cell {
-    position: relative;
-    border-radius: var(--radius-cell);
-    background: linear-gradient(178deg, var(--color-rice) 0%, var(--color-rice-deep) 100%);
-    color: var(--color-ink);
-    box-shadow:
-      0 0 0 1px rgba(201, 162, 74, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      inset 0 -1px 0 rgba(160, 132, 92, 0.28),
-      0 12px 26px -16px rgba(0, 0, 0, 0.85);
-    transition: transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1),
-                box-shadow 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  .frame::before {
+    left: 3px;
+    border-right: 1px solid var(--line-faint);
   }
 
-  .cell:hover {
+  .frame::after {
+    right: 3px;
+    border-left: 1px solid var(--line-faint);
+  }
+
+  /* Hover lifts the hairline one rung, to the same step the extension uses for
+     its live frame. No new colour, just further up the ladder. */
+  .frame-hover:hover {
+    box-shadow: inset 0 0 0 1px var(--line-live);
     transform: translateY(-2px);
-    box-shadow:
-      0 0 0 1px rgba(201, 162, 74, 0.95),
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      0 20px 34px -18px rgba(0, 0, 0, 0.9);
   }
 
-  /* A compartment left empty, showing the lacquer floor of the tray. */
-  .cell-empty {
-    border-radius: var(--radius-cell);
-    background:
-      repeating-linear-gradient(135deg, rgba(201, 162, 74, 0.05) 0 6px, rgba(201, 162, 74, 0) 6px 13px),
-      rgba(6, 4, 4, 0.4);
-    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.16);
+  .frame-live {
+    background: linear-gradient(180deg, var(--color-frame-live) 0%, var(--color-darkroom) 100%);
+    box-shadow: inset 0 0 0 1px var(--line-live);
   }
 
-  /* The thin gold lacquer seam between compartments. */
-  .seam {
-    height: 1px;
-    background: linear-gradient(90deg,
-      rgba(201, 162, 74, 0) 0%,
-      rgba(201, 162, 74, 0.5) 18%,
-      rgba(201, 162, 74, 0.5) 82%,
-      rgba(201, 162, 74, 0) 100%);
+  /* An empty well. Unexposed stock. */
+  .frame-blank {
+    background: repeating-linear-gradient(
+      45deg,
+      var(--line-hatch) 0 7px,
+      rgba(233, 229, 220, 0) 7px 14px
+    );
+    box-shadow: inset 0 0 0 1px var(--line-faint);
   }
 
-  .label-mono {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+  /* --------------------------------------------------------------------------
+     Perforation strip, the full width run under the site header. A gradient
+     rather than the extension's 22 fixed spans, because site width is fluid.
+     -------------------------------------------------------------------------- */
+  .perf-strip {
+    height: 8px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--color-darkroom) 0 13px,
+      rgba(5, 5, 6, 0) 13px 19px
+    );
+    box-shadow: inset 0 0 0 1px rgba(233, 229, 220, 0.04);
   }
 
-  /* Lacquer button, a raised black piece with a gold edge. */
-  .btn-lacquer {
-    font-family: var(--font-body);
+  /* --------------------------------------------------------------------------
+     Type roles
+     -------------------------------------------------------------------------- */
+
+  /* A section heading: wide tracked label, then a hairline filling the row. */
+  .section-rule {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-rule > span {
+    font-family: var(--font-head);
+    font-size: 10px;
     font-weight: 500;
-    border-radius: 999px;
-    padding: 0.5rem 1.1rem;
-    color: var(--color-rice);
-    background: linear-gradient(180deg, var(--color-lacquer-raise) 0%, #0b0707 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(201, 162, 74, 0.45),
-      inset 0 1px 0 rgba(224, 196, 131, 0.2),
-      0 8px 18px -12px rgba(0, 0, 0, 0.9);
-    transition: box-shadow 160ms ease, transform 160ms ease;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+    white-space: nowrap;
   }
 
-  .btn-lacquer:hover:not(:disabled) {
-    box-shadow:
-      inset 0 0 0 1px rgba(201, 162, 74, 0.95),
-      inset 0 1px 0 rgba(224, 196, 131, 0.3),
-      0 10px 22px -12px rgba(0, 0, 0, 0.9);
+  .section-rule::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line-plate);
   }
 
-  .btn-lacquer:active:not(:disabled) { transform: translateY(1px); }
-  .btn-lacquer:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Vermilion seal button, the primary action. */
-  .btn-seal {
-    font-family: var(--font-body);
-    font-weight: 700;
-    border-radius: 999px;
-    padding: 0.55rem 1.3rem;
-    color: var(--color-rice);
-    background: linear-gradient(180deg, var(--color-oxblood-lit) 0%, var(--color-oxblood-deep) 100%);
-    box-shadow:
-      inset 0 0 0 1px rgba(224, 196, 131, 0.55),
-      inset 0 1px 0 rgba(255, 226, 190, 0.35),
-      0 12px 24px -14px rgba(126, 32, 36, 0.9);
-    transition: filter 160ms ease, transform 160ms ease;
+  /* The eyebrow label. Was gold everywhere, now dim silver, because gold is
+     trim now and using it for every label would land on neither design. */
+  .label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
   }
 
-  .btn-seal:hover:not(:disabled) { filter: brightness(1.12); }
-  .btn-seal:active:not(:disabled) { transform: translateY(1px); }
-  .btn-seal:disabled { opacity: 0.55; cursor: not-allowed; }
+  .head-2 {
+    font-family: var(--font-head);
+    font-weight: 500;
+    font-size: 17px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-print);
+  }
 
-  /* Inputs read as shallow lacquer wells. */
+  /* The frame number, the only place red is used as text. */
+  .frame-no {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    color: var(--color-grease);
+  }
+
+  .frame-stamp {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+  }
+
+  /* --------------------------------------------------------------------------
+     The plate. Where an image is actually exposed.
+     -------------------------------------------------------------------------- */
+  .plate {
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    box-shadow: inset 0 0 0 1px var(--line-plate);
+  }
+
+  .plate img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: top;
+    /* Desaturated so a screenshot reads as a print, not as chrome. Hovering
+       the frame relaxes it, like holding a negative up to the light. */
+    filter: grayscale(0.35) contrast(1.06);
+    transition: filter 260ms ease;
+  }
+
+  .frame-hover:hover .plate img {
+    filter: grayscale(0.1) contrast(1.06) brightness(1.06);
+  }
+
+  .plate-empty {
+    display: grid;
+    place-items: center;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--line-hatch) 0 6px,
+      rgba(233, 229, 220, 0) 6px 12px
+    );
+  }
+
+  /* --------------------------------------------------------------------------
+     Controls
+     -------------------------------------------------------------------------- */
   .field {
     width: 100%;
-    font-family: var(--font-body);
-    color: var(--color-rice);
-    background: rgba(6, 4, 4, 0.55);
-    border-radius: 0.6rem;
-    padding: 0.6rem 0.9rem;
-    box-shadow:
-      inset 0 0 0 1px rgba(201, 162, 74, 0.28),
-      inset 0 2px 6px rgba(0, 0, 0, 0.6);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-print);
+    background: var(--color-gutter);
+    border: 0;
+    padding: 8px 10px;
+    box-shadow: inset 0 0 0 1px var(--line-field);
+    outline: none;
     transition: box-shadow 160ms ease;
   }
 
-  .field::placeholder { color: rgba(243, 233, 214, 0.32); }
+  .field::placeholder {
+    color: var(--color-silver-dim);
+  }
 
   .field:focus {
-    outline: none;
-    box-shadow:
-      inset 0 0 0 1px rgba(201, 162, 74, 0.85),
-      inset 0 2px 6px rgba(0, 0, 0, 0.6);
+    box-shadow: inset 0 0 0 1px var(--line-focus);
   }
 
-  /* Tag chips, small matcha lacquer beads. */
-  .chip {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    letter-spacing: 0.06em;
-    border-radius: 999px;
-    padding: 0.14rem 0.55rem;
-    color: #23301a;
-    background: linear-gradient(180deg, var(--color-matcha-lit) 0%, var(--color-matcha) 100%);
-    box-shadow: inset 0 0 0 1px rgba(35, 48, 26, 0.28);
-    white-space: nowrap;
+  textarea.field {
+    resize: vertical;
+    line-height: 1.45;
   }
 
-  .chip-quiet {
+  /* The shutter release. The primary action, everywhere. */
+  .shutter {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-print);
+    background: var(--color-grease);
+    border: 0;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition:
+      background 140ms ease,
+      transform 100ms ease;
+  }
+
+  .shutter:hover:not(:disabled) {
+    background: var(--color-grease-lit);
+  }
+
+  .shutter:active:not(:disabled) {
+    animation: shutter-fire 220ms ease;
+  }
+
+  .shutter:disabled {
+    background: rgba(233, 229, 220, 0.1);
+    color: var(--color-silver-dim);
+    cursor: not-allowed;
+  }
+
+  /* The quiet button. */
+  .ghost-btn {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+    background: none;
+    border: 0;
+    padding: 7px 12px;
+    box-shadow: inset 0 0 0 1px var(--line-field);
+    cursor: pointer;
+    transition:
+      color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .ghost-btn:hover:not(:disabled) {
+    color: var(--color-print);
+    box-shadow: inset 0 0 0 1px var(--line-focus);
+  }
+
+  .ghost-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* A bare text button, no box at all. */
+  .ghost {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color 160ms ease;
+  }
+
+  .ghost:hover {
+    color: var(--color-print);
+  }
+
+  /* --------------------------------------------------------------------------
+     Tags. Square, like everything else.
+     -------------------------------------------------------------------------- */
+  .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 9px;
     letter-spacing: 0.06em;
-    border-radius: 999px;
-    padding: 0.14rem 0.55rem;
-    color: var(--color-rice);
-    background: rgba(243, 233, 214, 0.07);
-    box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.3);
+    padding: 2px 6px;
+    color: var(--color-silver);
+    background: var(--line-tag);
+    box-shadow: inset 0 0 0 1px var(--line-tag-edge);
     white-space: nowrap;
+    transition:
+      color 160ms ease,
+      background 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .tag:hover {
+    color: var(--color-print);
+    background: var(--line-field);
+  }
+
+  .tag-on {
+    color: var(--color-print);
+    background: rgba(204, 53, 44, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(204, 53, 44, 0.55);
+  }
+
+  .tag-on:hover {
+    background: rgba(204, 53, 44, 0.24);
+  }
+
+  /* --------------------------------------------------------------------------
+     Notices
+     -------------------------------------------------------------------------- */
+  .notice {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--color-print);
+    padding: 8px 10px;
+    background: rgba(204, 53, 44, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(204, 53, 44, 0.5);
+  }
+
+  .notice-ok {
+    background: rgba(120, 150, 90, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(120, 150, 90, 0.5);
   }
 }
 
@@ -245,6 +465,7 @@
   .clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -252,14 +473,179 @@
   .clamp-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Motion.
+
+   The extension is deliberately near motionless. Everything here earns its
+   place by coming from the darkroom rather than from generic UI easing: prints
+   come up in the tray, the pencil draws, film advances, the shutter fires.
+   --------------------------------------------------------------------------- */
+
+@keyframes develop-in {
+  from {
+    opacity: 0;
+    filter: brightness(0.3) contrast(1.7);
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    filter: brightness(1) contrast(1);
+    transform: translateY(0);
+  }
+}
+
+@keyframes grease-draw {
+  from {
+    stroke-dashoffset: var(--dash, 90);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes shutter-fire {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.97);
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes advance {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes loupe-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reject-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-8px);
+  }
+  30% {
+    transform: translateX(7px);
+  }
+  45% {
+    transform: translateX(-5px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+  80% {
+    transform: translateX(-1px);
+  }
+}
+
+/* The lid halves parting. Two panels, mirrored by the sign of --dir. */
+@keyframes lid-part {
+  from {
+    transform: translateX(0) rotate(0deg);
+  }
+  to {
+    transform: translateX(calc(var(--dir) * 105%)) rotate(calc(var(--dir) * 3deg));
+  }
+}
+
+@keyframes light-spill {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes developing {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+.animate-develop {
+  animation: develop-in 520ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+
+.animate-advance {
+  animation: advance 320ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+
+.animate-loupe {
+  animation: loupe-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.animate-backdrop {
+  animation: backdrop-in 200ms ease;
+}
+
+.animate-reject {
+  animation: reject-shake 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.animate-developing {
+  animation: developing 1.4s ease-in-out infinite;
+}
+
+/* The pencil drawing itself on. The dash length is set per path in the
+   component, because each of the two strokes is a different length. */
+.animate-grease {
+  stroke-dasharray: var(--dash, 90);
+  animation: grease-draw 520ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
