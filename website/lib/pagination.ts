@@ -18,10 +18,9 @@ export function parsePage(value: string | undefined): number {
   return Math.min(parsed, 10_000)
 }
 
-/** Inclusive bounds for a Supabase range() call. */
-export function pageRange(page: number): [from: number, to: number] {
-  const from = (page - 1) * PAGE_SIZE
-  return [from, from + PAGE_SIZE - 1]
+/** Row offset for the start of a page, what SQLite's LIMIT/OFFSET wants. */
+export function pageOffset(page: number): number {
+  return (page - 1) * PAGE_SIZE
 }
 
 export function totalPages(total: number): number {

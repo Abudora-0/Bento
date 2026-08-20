@@ -42,5 +42,8 @@ Thumbs.db
 next-env.d.ts
 coverage/
 
+# The SQLite database and saved screenshots. Local state, never checked in.
+website/data/
+
 # Local editor and tooling config
 .claude/

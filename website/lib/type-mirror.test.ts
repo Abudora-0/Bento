@@ -40,16 +40,15 @@ describe("mirrored database types", () => {
         `website/types/db.ts and extension/lib/types.ts have drifted, first difference on line ${at + 1}:\n` +
           `  website:   ${a[at] ?? "(missing)"}\n` +
           `  extension: ${b[at] ?? "(missing)"}\n` +
-          `Change one, change the other, and change supabase/migrations with them.`
+          `Change one, change the other, and change website/lib/db/schema.ts with them.`
       )
     }
   })
 
-  it("still describe the columns the migration creates", () => {
+  it("still describe the columns the schema creates", () => {
     const source = declarations(WEBSITE)
 
     for (const column of [
-      "user_id",
       "url",
       "title",
       "favicon_url",

@@ -6,11 +6,11 @@ import { FolderRail } from "~/components/FolderRail"
 import { Pagination } from "~/components/Pagination"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
-import { pageRange, parsePage, totalPages } from "~/lib/pagination"
+import { listAllTags, listBookmarks } from "~/lib/db/bookmarks"
+import { listFolders } from "~/lib/db/folders"
+import { PAGE_SIZE, pageOffset, parsePage, totalPages } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
 import { parseSort, sortOption } from "~/lib/sort"
-import { createClient } from "~/lib/supabase/server"
-import type { BookmarkWithFolder, Folder } from "~/types/db"
 
 export const metadata: Metadata = { title: "Your tray" }
 export const dynamic = "force-dynamic"
@@ -24,59 +24,30 @@ type SearchParams = Promise<{
   page?: string
 }>
 
-/** PostgREST reads commas and parentheses as syntax inside an or() filter. */
-function sanitizeSearch(input: string): string {
-  return input.replace(/[,()%\\*]/g, " ").trim().slice(0, 120)
-}
-
 export default async function TrayPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
-  const supabase = await createClient()
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const q = sanitizeSearch(params.q ?? "")
+  const q = (params.q ?? "").trim().slice(0, 120)
   const tag = (params.tag ?? "").trim().slice(0, 32)
   const folder = (params.folder ?? "").trim()
   const starredOnly = params.star === "1"
   const sort = parseSort(params.sort)
   const order = sortOption(sort)
   const page = parsePage(params.page)
-  const [from, to] = pageRange(page)
+  const from = pageOffset(page)
 
-  let query = supabase
-    .from("bookmarks")
-    // Exact count drives the page numbers. A personal tray is nowhere near the
-    // size where counting every matching row costs anything noticeable.
-    .select("*, folder:folders(id, name)", { count: "exact" })
-    .eq("user_id", user.id)
-    .order(order.column, { ascending: order.ascending })
-    // A stable tiebreak, otherwise rows with an equal sort key can swap places
-    // between pages and you get one twice while never seeing another.
-    .order("id", { ascending: true })
-    .range(from, to)
+  const { rows, total } = listBookmarks({
+    q: q || undefined,
+    tag: tag || undefined,
+    folder: folder || undefined,
+    starredOnly,
+    sortColumn: order.column,
+    ascending: order.ascending,
+    limit: PAGE_SIZE,
+    offset: from
+  })
 
-  if (folder === "none") query = query.is("folder_id", null)
-  else if (folder) query = query.eq("folder_id", folder)
-
-  if (tag) query = query.contains("tags", [tag])
-  if (starredOnly) query = query.eq("starred", true)
-  if (q) query = query.or(`title.ilike.%${q}%,url.ilike.%${q}%,notes.ilike.%${q}%`)
-
-  const [{ data: bookmarks, error: bookmarksError, count }, { data: folders }, { data: tagRows }] =
-    await Promise.all([
-      query,
-      supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
-      supabase.from("bookmarks").select("tags").eq("user_id", user.id).limit(2000)
-    ])
-
-  const allFolders = (folders ?? []) as Folder[]
-  const rows = (bookmarks ?? []) as unknown as BookmarkWithFolder[]
-
-  const total = count ?? 0
+  const allFolders = listFolders()
   const lastPage = totalPages(total)
 
   // Deleting the last few rows, or arriving on a bookmarked deep link, can put
@@ -92,8 +63,8 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
 
   // Tag counts across the whole tray, so the filter rail does not shrink as you filter.
   const tagCounts = new Map<string, number>()
-  for (const row of tagRows ?? []) {
-    for (const t of row.tags ?? []) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1)
+  for (const bookmarkTags of listAllTags()) {
+    for (const t of bookmarkTags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1)
   }
   const topTags = [...tagCounts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -115,15 +86,6 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           folders={allFolders}
           activeFolder={folder}
         />
-
-        {bookmarksError ? (
-          <p
-            role="alert"
-            className="mt-6 rounded-xl bg-oxblood/30 px-4 py-3 text-sm text-rice shadow-[inset_0_0_0_1px_rgba(201,162,74,0.35)]"
-          >
-            Could not load the tray: {bookmarksError.message}
-          </p>
-        ) : null}
 
         <section className="tray mt-5 p-3 sm:p-5">
           {rows.length === 0 ? (

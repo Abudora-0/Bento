@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { PAGE_SIZE, pageRange, pageWindow, parsePage, totalPages } from "./pagination.ts"
+import { PAGE_SIZE, pageOffset, pageWindow, parsePage, totalPages } from "./pagination.ts"
 
 describe("parsePage", () => {
   it("defaults to the first page for anything unusable", () => {
@@ -20,14 +20,11 @@ describe("parsePage", () => {
   })
 })
 
-describe("pageRange", () => {
-  it("produces inclusive bounds that do not overlap", () => {
-    assert.deepEqual(pageRange(1), [0, PAGE_SIZE - 1])
-    assert.deepEqual(pageRange(2), [PAGE_SIZE, PAGE_SIZE * 2 - 1])
-
-    const [, firstTo] = pageRange(1)
-    const [secondFrom] = pageRange(2)
-    assert.equal(secondFrom, firstTo + 1)
+describe("pageOffset", () => {
+  it("starts page one at row zero and advances by a full page each time", () => {
+    assert.equal(pageOffset(1), 0)
+    assert.equal(pageOffset(2), PAGE_SIZE)
+    assert.equal(pageOffset(3), PAGE_SIZE * 2)
   })
 })
 

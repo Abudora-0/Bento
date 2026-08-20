@@ -9,52 +9,41 @@ import "./popup.css"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import {
-  captureCount,
-  getActiveTab,
-  grabScreenshot,
-  hostnameOf,
-  lastFolder,
-  listFolders,
-  parseTags,
-  recentCaptures,
-  rememberFolder,
-  saveCapture,
-  setStarred,
-  type ActiveTab
-} from "./lib/capture"
-import { supabase } from "./lib/supabase"
+import { listFolders, recentCaptures, saveCapture, setStarred } from "./lib/api"
+import { getActiveTab, grabScreenshot, hostnameOf, lastFolder, rememberFolder, type ActiveTab } from "./lib/capture"
+import { getConfig, setConfig, testConnection, type Config } from "./lib/config"
 import type { Bookmark, Folder } from "./lib/types"
 
-const SITE_URL = (process.env.PLASMO_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "")
-
 export default function Popup() {
-  const [ready, setReady] = useState(false)
-  const [signedIn, setSignedIn] = useState(false)
+  const [config, setConfigState] = useState<Config | null | undefined>(undefined)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     let active = true
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return
-      setSignedIn(Boolean(data.session))
-      setReady(true)
+    getConfig().then((c) => {
+      if (active) setConfigState(c)
     })
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(Boolean(session))
-    })
-
     return () => {
       active = false
-      sub.subscription.unsubscribe()
     }
   }, [])
 
   return (
     <div className="sheet">
       <Leader />
-      {!ready ? <div className="empty">Loading the roll</div> : signedIn ? <Darkroom /> : <SignIn />}
+      {config === undefined ? (
+        <div className="empty">Loading the roll</div>
+      ) : config === null || editing ? (
+        <Connect
+          initial={config ?? undefined}
+          onConnected={(next) => {
+            setConfigState(next)
+            setEditing(false)
+          }}
+        />
+      ) : (
+        <Darkroom config={config} onEditSettings={() => setEditing(true)} />
+      )}
     </div>
   )
 }
@@ -83,34 +72,34 @@ function Leader() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Sign in                                                                     */
+/* Connect, replaces sign in. There is no account, just where the tray lives   */
 /* -------------------------------------------------------------------------- */
 
-function SignIn() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [mode, setMode] = useState<"signin" | "signup">("signin")
+function Connect({
+  initial,
+  onConnected
+}: {
+  initial?: Config
+  onConnected: (config: Config) => void
+}) {
+  const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? "")
+  const [secret, setSecret] = useState(initial?.secret ?? "")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setBusy(true)
     setError(null)
-    setNotice(null)
 
-    const call =
-      mode === "signup"
-        ? supabase.auth.signUp({ email, password })
-        : supabase.auth.signInWithPassword({ email, password })
+    const config: Config = { siteUrl: siteUrl.trim().replace(/\/$/, ""), secret: secret.trim() }
+    const result = await testConnection(config)
 
-    const { data, error: authError } = await call
-
-    if (authError) setError(authError.message)
-    else if (mode === "signup" && !data.session) {
-      setNotice("Check your inbox to confirm the address, then sign in.")
-      setMode("signin")
+    if (result.ok) {
+      await setConfig(config)
+      onConnected(config)
+    } else {
+      setError(result.error)
     }
 
     setBusy(false)
@@ -120,58 +109,47 @@ function SignIn() {
     <div className="pad">
       <h1 className="head-2">Load the film</h1>
       <p className="lede">
-        Sign in with the same account you use on the Bento site. Captures land in the same tray.
+        Point this at your Bento site and enter its secret. That is the same value the site itself
+        asks your browser for.
       </p>
 
       <form onSubmit={submit} className="stack" style={{ marginTop: 14 }}>
         <div>
-          <label className="label" htmlFor="email">
-            Email
+          <label className="label" htmlFor="site-url">
+            Site address
           </label>
           <input
-            id="email"
+            id="site-url"
             className="field"
-            type="email"
+            type="url"
             required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            placeholder="https://bento.example.com"
+            autoComplete="off"
+            spellCheck={false}
+            value={siteUrl}
+            onChange={(e) => setSiteUrl(e.target.value)}
           />
         </div>
 
         <div>
-          <label className="label" htmlFor="password">
-            Password
+          <label className="label" htmlFor="secret">
+            Secret
           </label>
           <input
-            id="password"
+            id="secret"
             className="field"
             type="password"
             required
-            minLength={8}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="off"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
           />
         </div>
 
         {error ? <div className="notice">{error}</div> : null}
-        {notice ? <div className="notice notice-ok">{notice}</div> : null}
 
         <button className="shutter" type="submit" disabled={busy}>
-          {busy ? "Working" : mode === "signup" ? "Create account" : "Sign in"}
-        </button>
-
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => {
-            setMode(mode === "signup" ? "signin" : "signup")
-            setError(null)
-            setNotice(null)
-          }}
-        >
-          {mode === "signup" ? "I already have an account" : "Create an account"}
+          {busy ? "Checking" : "Connect"}
         </button>
       </form>
     </div>
@@ -179,10 +157,10 @@ function SignIn() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Darkroom, the signed in popup                                               */
+/* Darkroom, the connected popup                                               */
 /* -------------------------------------------------------------------------- */
 
-function Darkroom() {
+function Darkroom({ config, onEditSettings }: { config: Config; onEditSettings: () => void }) {
   const [tab, setTab] = useState<ActiveTab | null>(null)
   const [tabChecked, setTabChecked] = useState(false)
   const [shot, setShot] = useState<Blob | null>(null)
@@ -204,10 +182,10 @@ function Darkroom() {
   const previewRef = useRef<string | null>(null)
 
   const refreshStrip = useCallback(async () => {
-    const [rows, count] = await Promise.all([recentCaptures(12), captureCount()])
-    setRecent(rows)
+    const { bookmarks, total: count } = await recentCaptures(config, 12)
+    setRecent(bookmarks)
     setTotal(count)
-  }, [])
+  }, [config])
 
   useEffect(() => {
     let active = true
@@ -231,7 +209,7 @@ function Darkroom() {
         }
       }
 
-      const [rows, remembered] = await Promise.all([listFolders(), lastFolder()])
+      const [rows, remembered] = await Promise.all([listFolders(config), lastFolder()])
       if (!active) return
 
       setFolders(rows)
@@ -245,7 +223,7 @@ function Darkroom() {
       active = false
       if (previewRef.current) URL.revokeObjectURL(previewRef.current)
     }
-  }, [refreshStrip])
+  }, [config, refreshStrip])
 
   async function expose() {
     if (!tab) return
@@ -254,11 +232,11 @@ function Darkroom() {
     setError(null)
     setSaved(null)
 
-    const result = await saveCapture({
+    const result = await saveCapture(config, {
       url: tab.url,
       title: tab.title,
       faviconUrl: tab.faviconUrl,
-      tags: parseTags(tags),
+      tags,
       notes,
       screenshot: shot,
       folderId
@@ -268,6 +246,12 @@ function Darkroom() {
       setSaved(result.updated ? "Frame updated on the sheet." : "Frame exposed.")
       setTags("")
       setNotes("")
+
+      if (result.folderWasStale) {
+        setFolderId(null)
+        await rememberFolder(null)
+      }
+
       await refreshStrip()
     } else {
       setError(result.error)
@@ -281,7 +265,7 @@ function Darkroom() {
 
     setRecent((rows) => rows.map((r) => (r.id === bookmark.id ? { ...r, starred: next } : r)))
 
-    const ok = await setStarred(bookmark.id, next)
+    const ok = await setStarred(config, bookmark.id, next)
     if (!ok) {
       setRecent((rows) => rows.map((r) => (r.id === bookmark.id ? { ...r, starred: !next } : r)))
     }
@@ -398,16 +382,11 @@ function Darkroom() {
       </div>
 
       <div className="footer">
-        <a href={`${SITE_URL}/app`} target="_blank" rel="noreferrer">
+        <a href={`${config.siteUrl}/app`} target="_blank" rel="noreferrer">
           Open the tray
         </a>
-        <button
-          className="ghost"
-          onClick={() => {
-            void supabase.auth.signOut()
-          }}
-        >
-          Sign out
+        <button className="ghost" onClick={onEditSettings}>
+          Settings
         </button>
       </div>
     </>
