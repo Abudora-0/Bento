@@ -131,18 +131,36 @@ export type CaptureInput = {
   folderId: string | null
 }
 
+export type UpsertResult = {
+  bookmark: Bookmark
+  updated: boolean
+  /**
+   * The screenshot file the new one replaced, if any. The caller owns
+   * deleting it from disk, this layer only knows about database rows.
+   */
+  replacedScreenshotUrl: string | null
+}
+
 /**
  * Inserts a bookmark, or merges into the existing row for that url. Re-saving
  * a page you already have unions the tags, keeps the existing note unless a
  * new one was supplied, and only moves it to a new folder if one was chosen,
  * so leaving the picker on Unfiled does not drag a filed bookmark back out.
  */
-export function upsertByUrl(input: CaptureInput): { bookmark: Bookmark; updated: boolean } {
+export function upsertByUrl(input: CaptureInput): UpsertResult {
   const existing = getBookmarkByUrl(input.url)
 
   if (existing) {
     const mergedTags = [...new Set([...(JSON.parse(existing.tags) as string[]), ...input.tags])].slice(0, 12)
     const notes = input.notes.trim() ? input.notes.trim() : existing.notes
+
+    // A new screenshot replaces the old one in the row. Without tracking this,
+    // the previous file just sits on disk forever, nothing else ever points
+    // back to it once the row moves on.
+    const replacedScreenshotUrl =
+      input.screenshotUrl && existing.screenshot_url && input.screenshotUrl !== existing.screenshot_url
+        ? existing.screenshot_url
+        : null
 
     db.prepare(
       `update bookmarks
@@ -159,7 +177,7 @@ export function upsertByUrl(input: CaptureInput): { bookmark: Bookmark; updated:
       existing.id
     )
 
-    return { bookmark: getBookmark(existing.id) as Bookmark, updated: true }
+    return { bookmark: getBookmark(existing.id) as Bookmark, updated: true, replacedScreenshotUrl }
   }
 
   const id = newId()
@@ -182,7 +200,7 @@ export function upsertByUrl(input: CaptureInput): { bookmark: Bookmark; updated:
     timestamp
   )
 
-  return { bookmark: getBookmark(id) as Bookmark, updated: false }
+  return { bookmark: getBookmark(id) as Bookmark, updated: false, replacedScreenshotUrl: null }
 }
 
 export type EditInput = {

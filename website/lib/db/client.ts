@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { existsSync, mkdirSync } from "node:fs"
+import { existsSync, mkdirSync, unlinkSync } from "node:fs"
 import { DatabaseSync } from "node:sqlite"
 import { resolve } from "node:path"
 
@@ -86,4 +86,31 @@ const SAFE_FILENAME = /^[a-f0-9-]{36}\.jpg$/
 export function screenshotPath(filename: string): string | null {
   if (!SAFE_FILENAME.test(filename)) return null
   return resolve(screenshotDir(), filename)
+}
+
+/** Pulls "<uuid>.jpg" back out of an absolute /api/screenshots/ url. */
+export function screenshotFilename(url: string | null): string | null {
+  if (!url) return null
+  const marker = "/api/screenshots/"
+  const at = url.indexOf(marker)
+  return at === -1 ? null : url.slice(at + marker.length)
+}
+
+/**
+ * Removes a screenshot file given its stored url. Used when a bookmark is
+ * deleted and when a re-capture replaces the screenshot it had. Missing or
+ * already gone is not an error, there is nothing left to clean up either way.
+ */
+export function deleteScreenshot(url: string | null): void {
+  const filename = screenshotFilename(url)
+  if (!filename) return
+
+  const path = screenshotPath(filename)
+  if (!path) return
+
+  try {
+    unlinkSync(path)
+  } catch {
+    // Already gone, or never written.
+  }
 }

@@ -1,0 +1,46 @@
+import assert from "node:assert/strict"
+import { after, describe, it } from "node:test"
+
+import { authed, cleanupDataDir, setUpTempDataDir } from "~/lib/test-support"
+
+setUpTempDataDir()
+
+const { GET } = await import("./route.ts")
+const { upsertByUrl } = await import("~/lib/db/bookmarks")
+
+after(cleanupDataDir)
+
+describe("GET /api/bookmarks", () => {
+  it("refuses without a bearer token", async () => {
+    const res = await GET(new Request("http://x/api/bookmarks"))
+    assert.equal(res.status, 401)
+  })
+
+  it("returns the newest captures first, plus a total count", async () => {
+    for (let i = 0; i < 3; i++) {
+      upsertByUrl({
+        url: `https://example.com/${i}`,
+        title: `Page ${i}`,
+        faviconUrl: null,
+        screenshotUrl: null,
+        tags: [],
+        notes: "",
+        folderId: null
+      })
+    }
+
+    const res = await GET(new Request("http://x/api/bookmarks?limit=2", authed()))
+    assert.equal(res.status, 200)
+
+    const body = (await res.json()) as { bookmarks: { url: string }[]; total: number }
+    assert.equal(body.total, 3)
+    assert.equal(body.bookmarks.length, 2)
+    assert.equal(body.bookmarks[0].url, "https://example.com/2")
+  })
+
+  it("clamps an absurd limit rather than erroring", async () => {
+    const res = await GET(new Request("http://x/api/bookmarks?limit=99999", authed()))
+    const body = (await res.json()) as { bookmarks: unknown[] }
+    assert.ok(body.bookmarks.length <= 50)
+  })
+})

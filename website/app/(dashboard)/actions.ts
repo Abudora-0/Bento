@@ -1,12 +1,11 @@
 "use server"
 
-import { unlinkSync } from "node:fs"
-
 import { revalidatePath } from "next/cache"
 
 import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
-import { screenshotPath } from "~/lib/db/client"
+import { deleteScreenshot } from "~/lib/db/client"
+import { discoverFaviconUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
@@ -38,12 +37,16 @@ export async function createBookmark(formData: FormData): Promise<ActionResult> 
 
     const typedTitle = String(formData.get("title") ?? "").trim().slice(0, 500)
 
+    // Best effort, and bounded, a slow or unreachable site should not stop the
+    // bookmark from saving. Nothing reads a screenshot for a typed address
+    // though, that would need rendering the page, the compartment falls back
+    // to a lettered mark for those, which is by design.
+    const faviconUrl = await discoverFaviconUrl(url).catch(() => null)
+
     bookmarks.upsertByUrl({
       url,
       title: typedTitle || hostnameOf(url),
-      // Nothing to read a favicon or screenshot from when the address is typed.
-      // The compartment falls back to a lettered mark, which is by design.
-      faviconUrl: null,
+      faviconUrl,
       screenshotUrl: null,
       tags: parseTags(String(formData.get("tags") ?? "")),
       notes: String(formData.get("notes") ?? "").slice(0, 10000).trim(),
@@ -91,33 +94,13 @@ export async function setStarred(id: string, starred: boolean): Promise<ActionRe
 
 export async function deleteBookmark(id: string): Promise<ActionResult> {
   try {
-    const screenshotUrl = bookmarks.deleteBookmark(id)
-
-    const filename = screenshotFilename(screenshotUrl)
-    if (filename) {
-      const path = screenshotPath(filename)
-      if (path) {
-        try {
-          unlinkSync(path)
-        } catch {
-          // Already gone, or never written. Either way there is nothing left to clean up.
-        }
-      }
-    }
+    deleteScreenshot(bookmarks.deleteBookmark(id))
 
     refresh()
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
   }
-}
-
-/** Pulls "<uuid>.jpg" back out of an absolute /api/screenshots/ url. */
-function screenshotFilename(url: string | null): string | null {
-  if (!url) return null
-  const marker = "/api/screenshots/"
-  const at = url.indexOf(marker)
-  return at === -1 ? null : url.slice(at + marker.length)
 }
 
 /* -------------------------------------------------------------------------- */

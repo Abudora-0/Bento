@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/**/*.test.ts\""
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-loader.mjs --test \"lib/**/*.test.ts\" \"app/**/*.test.ts\""
   },
   "dependencies": {
     "@fontsource/shippori-mincho": "^5.3.0",

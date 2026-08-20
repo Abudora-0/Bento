@@ -5,7 +5,7 @@ import { hasValidBearer, unauthorized } from "~/lib/auth"
 import { corsJson, corsPreflight } from "~/lib/cors"
 import { folderExists } from "~/lib/db/folders"
 import { upsertByUrl } from "~/lib/db/bookmarks"
-import { screenshotPath } from "~/lib/db/client"
+import { deleteScreenshot, screenshotPath } from "~/lib/db/client"
 import { normalizeUrl, parseTags } from "~/lib/format"
 import { siteUrl } from "~/lib/site-url"
 
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const { bookmark, updated } = upsertByUrl({
+  const { bookmark, updated, replacedScreenshotUrl } = upsertByUrl({
     url,
     title,
     faviconUrl,
@@ -74,6 +74,10 @@ export async function POST(request: Request) {
     notes,
     folderId
   })
+
+  // A recapture that brings a new screenshot leaves the old file behind on
+  // disk with nothing pointing at it any more, once the row moves on.
+  deleteScreenshot(replacedScreenshotUrl)
 
   return corsJson(request, {
     bookmark,
