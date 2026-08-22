@@ -24,7 +24,15 @@ Bento is a bookmark manager built around one idea: a saved page is a photograph 
 
 Sign up, and everything you save is yours. Bookmarks, folders and tags are scoped per account at the database level rather than filtered in application code, so two people using the same deployment never see each other's sheets.
 
-> **Screenshots.** Drop images into `docs/` and reference them here. There is no automated capture in the repo, so this section is deliberately left for you to fill in with the real thing rather than a mockup.
+<div align="center">
+
+![The Bento mark and wordmark, shown as a lockup, at large size, and at favicon sizes](docs/mark.png)
+
+</div>
+
+The mark and the lettering above are not a mockup. `docs/mark.png` is generated from `website/components/Wordmark.tsx`, so it cannot drift from what the app actually renders.
+
+> **Screenshots of the app itself** are not in the repo yet. Drop them into `docs/` and link them here when you have them, rather than putting a mockup in their place.
 
 ## Try it
 
@@ -40,20 +48,30 @@ If you would rather run your own, the whole thing is below and takes about five 
 
 ## Features
 
-- **Accounts**, so a handful of people can share one deployment and keep separate sheets
-- **Sign in with either** your username or your email, and reveal the password if you need to check it
+**Capturing**
+
 - **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
-- **A real lock**, not a password prompt: closes when the browser closes, after inactivity, or on demand
+- **Add by hand** for pages the extension cannot reach, with a server side favicon lookup
+- **Merge on re-capture**, so saving the same page twice unions its tags instead of duplicating it
+
+**The sheet**
+
 - **Bento grid layout**, frames in nine varying sizes rather than a uniform card wall
+- **A loupe**, because that is what you do with a contact sheet: space blows a frame up, arrows walk the roll
+- **Command palette** on `Ctrl+K`, or `Cmd+K`, to jump to a folder, a tag, or an action
+- **Marking up from the keyboard**, arrows to move, `x` to select, `s` to star, Enter to open
+- **Bulk actions**, select several frames and mark, file or delete them together
 - **Search** across titles, addresses and notes, with `/` to focus from anywhere
 - **Tags, folders and starring**, all filterable, all shareable as a URL
-- **Add by hand** for pages the extension cannot reach, with a server side favicon lookup
-- **A loupe**, because that is what you do with a contact sheet: press space to blow a frame up, arrows to walk the roll
-- **Command palette** on Ctrl or Cmd K, to jump to a folder, a tag, or an action
-- **Keyboard marking**, arrows to move across the sheet, `x` to select, `s` to star, Enter to open
-- **Bulk actions**, select several frames and mark, file or delete them together
-- **Merge on re-capture**, so saving the same page twice unions its tags instead of duplicating it
+- **A tab title that says what you are looking at**, so several open sheets are tellable apart
+
+**Accounts**
+
+- **Separate sheets**, so a handful of people can share one deployment without seeing each other's
+- **Sign in with either** your username or your email, and reveal the password if you need to check it
+- **A real lock**, not a password prompt: closes when the browser closes, after inactivity, or on demand
+- **Rate limited**, so the lock cannot be worked through with a word list
 
 ## Design
 
@@ -69,7 +87,11 @@ Two surfaces, one design language: a darkroom contact print.
 
 Every border is a one pixel inset hairline, never a drop shadow. Nothing has a border radius. Depth is expressed only by stepping a fixed alpha ladder, so a hover and a focus differ by a rung rather than by a new colour. Screenshots are desaturated so they read as prints, and brighten when you hover a frame, like holding a negative up to the light.
 
-Motion follows the same metaphor. Frames develop in rather than fading, the grease pencil draws itself when you star something, the sheet advances like film between pages, and the lock screen is a bento lid that parts down the middle. All of it is plain CSS with no animation library, and all of it respects `prefers-reduced-motion`.
+**Nothing on the page is a browser default.** Checkboxes, dropdowns and scrollbars are all drawn from scratch, because each of them ships with rounded corners and its own highlight colour, and one native control is enough to make a design look like a template someone forgot to finish. The dropdown in particular is a real listbox rather than a styled `<select>`: setting `appearance: none` fixes the closed state and nothing else, since the popup list belongs to the operating system.
+
+The mark is the same idea in one square, three compartments with the largest circled in grease pencil, which is the identical gesture to starring a bookmark. The name beside it is drawn as outlines rather than set in a typeface, so the logo carries no font dependency and the extension embeds the same paths without a font file going into its bundle.
+
+Motion follows the same metaphor. Frames develop in rather than fading, the wordmark comes up a letter at a time while its circle pencils itself, the grease pencil draws when you star something, the sheet advances like film between pages, and the lock screen is a bento lid that parts down the middle. All of it is plain CSS with no animation library, and all of it respects `prefers-reduced-motion`.
 
 ## Stack
 
@@ -169,12 +191,31 @@ Open the popup. It asks for the site's address and your extension token, which i
 - **Quick capture**: `Ctrl+Shift+S`, or `Cmd+Shift+S` on macOS. Files into whichever folder the popup is set to
 - **Add by hand**: the Add button on the site, for pages the extension cannot reach. It looks up a favicon server side. No screenshot for a typed address, that would need rendering the page
 - **Star**: the grease pencil circle, in either surface
-- **Search**: press `/` anywhere on the sheet
+- **Look closely**: press space, or click a frame number, to put a loupe over the capture
 - **Filter**: click a tag, pick a folder, or narrow to marked only
-- **Lock**: the Lock button in the header
+- **Mark up a batch**: shift click frames, or press `x` on each, then use the bar that appears
+- **Lock**: the Lock button in the header, or `Ctrl+K` then Lock
 - **Pair another browser**: Settings has your extension token, and a Regenerate button for cutting an old one off
 
 Chrome will not let any extension screenshot its own pages, the web store, or local files. On those the popup says so rather than failing quietly.
+
+### Keyboard
+
+The sheet is meant to be marked up without reaching for the mouse.
+
+| Key | What it does |
+| --- | --- |
+| `/` | Focus the search field |
+| `Ctrl+K` | Command palette: folders, tags, and actions. `Cmd+K` on macOS |
+| `Arrows` | Move the cursor across the sheet |
+| `Home` / `End` | First and last frame on the page |
+| `Space` | Loupe on the frame under the cursor, arrows then walk the roll |
+| `Enter` | Open the page in a new tab |
+| `s` | Star, or unstar |
+| `x` | Add the frame to the selection |
+| `Escape` | Clear the selection, close the loupe or the palette |
+
+Shortcuts stand down while you are typing in a field, and while the loupe or the palette is open.
 
 ## Testing
 
@@ -186,6 +227,8 @@ npm test
 202 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
 
 The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
+
+What is **not** covered: the React components, the sign in and sign up server actions, and the extension. The interface was walked by hand instead. The database layer underneath the bulk actions does have cross account tests, because that is where getting it wrong would actually matter.
 
 ## Scripts
 
@@ -213,6 +256,8 @@ npm run typecheck
 ```
 
 The toolbar icon is generated rather than committed as an opaque binary. `scripts/make-icon.mjs` draws it with plain arithmetic and writes the PNG itself, zlib deflate and CRC32 by hand, so a change to the mark is a readable diff.
+
+**Migrations are written by hand when they have to be.** `db:push` is `CREATE IF NOT EXISTS`, which means it can add a table and can never alter one, so adding a column to a database that already has rows needs either `db:reset`, which throws the rows away, or a script. `website/scripts/migrate-add-username.mjs` is the worked example: it adds the column nullable, because SQLite cannot add a `NOT NULL` column to a populated table without a default and a shared default would collide with the unique index, then backfills it, then creates the index. It is safe to run twice.
 
 ## Deploying
 

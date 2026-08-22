@@ -14,7 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # node:sqlite needs to be available without an experimental flag.
+      # Node 24 for type stripping: the tests are TypeScript run straight
+      # through node:test, with no build step and no test framework.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -36,9 +37,9 @@ jobs:
       - name: Build
         working-directory: website
         env:
-          # The build must not need the real secret, but it does need one that
-          # passes the length check, since middleware is compiled during it.
-          BENTO_USER: ci
+          # The build must not need real credentials, and this proves it: there
+          # is no database url here at all, which is what keeps lib/db/client.ts
+          # honest about building its client lazily rather than at module load.
           BENTO_SECRET: ci-build-secret-not-a-real-one
         run: npm run build
 
