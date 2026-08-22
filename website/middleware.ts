@@ -51,10 +51,13 @@ export async function middleware(request: NextRequest) {
    * so a burst of navigations does not re-sign a token on every one.
    */
   if (Date.now() - session.issuedAt > 60_000) {
+    // Carrying `remember` forward matters: dropping it here would silently
+    // downgrade a "stay signed in" session to one that dies with the browser,
+    // on the very next navigation.
     response.cookies.set(
       SESSION_COOKIE,
-      await issueSession(),
-      sessionCookieOptions(request.nextUrl.protocol === "https:")
+      await issueSession(session.userId, { remember: session.remember }),
+      sessionCookieOptions(request.nextUrl.protocol === "https:", session.remember)
     )
   }
 

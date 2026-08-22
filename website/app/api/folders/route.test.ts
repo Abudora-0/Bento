@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { authed, setUpTestDatabase } from "~/lib/test-support"
+import { authed, makeUser, setUpTestDatabase } from "~/lib/test-support"
 
 await setUpTestDatabase()
 
 const { GET, OPTIONS } = await import("./route.ts")
 const { createFolder } = await import("~/lib/db/folders")
+
+const user = await makeUser("folders@example.com")
 
 
 describe("GET /api/folders", () => {
@@ -21,10 +23,10 @@ describe("GET /api/folders", () => {
   })
 
   it("lists folders alphabetically once authenticated", async () => {
-    await createFolder("Reading")
-    await createFolder("Archive")
+    await createFolder(user.id, "Reading")
+    await createFolder(user.id, "Archive")
 
-    const res = await GET(new Request("http://x/api/folders", authed()))
+    const res = await GET(new Request("http://x/api/folders", authed(user.api_token)))
     assert.equal(res.status, 200)
 
     const body = (await res.json()) as { folders: { name: string }[] }

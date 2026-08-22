@@ -1,4 +1,4 @@
-import { hasValidBearer, unauthorized } from "~/lib/auth"
+import { unauthorized, userFromBearer } from "~/lib/auth"
 import { corsJson, corsPreflight } from "~/lib/cors"
 import { getBookmark, setStarred } from "~/lib/db/bookmarks"
 
@@ -10,7 +10,8 @@ export function OPTIONS(request: Request) {
 
 /** Only starring, which is the one edit the popup itself makes to an existing row. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await hasValidBearer(request))) return unauthorized(request)
+  const user = await userFromBearer(request)
+  if (!user) return unauthorized(request)
 
   const { id } = await params
   const body = (await request.json().catch(() => null)) as { starred?: unknown } | null
@@ -19,8 +20,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return corsJson(request, { error: "Expected { starred: boolean }." }, { status: 400 })
   }
 
-  const ok = await setStarred(id, body.starred)
+  const ok = await setStarred(user.id, id, body.starred)
   if (!ok) return corsJson(request, { error: "No bookmark with that id." }, { status: 404 })
 
-  return corsJson(request, { bookmark: await getBookmark(id) })
+  return corsJson(request, { bookmark: await getBookmark(user.id, id) })
 }

@@ -1,11 +1,13 @@
 /**
- * Shape of the Bento tables, mirrored from website/types/db.ts so the two
+ * Shape of the Bento tables, mirrored into extension/lib/types.ts so the two
  * surfaces agree without a shared build step. If you change one, change both,
  * and change website/lib/db/schema.ts with them.
  *
- * Single user, so there is no user_id column. Anything that reaches this
- * process already got past the shared secret in middleware.ts or the bearer
- * check in the api routes.
+ * The tables carry a user_id, and these types deliberately do not. A row is
+ * only ever loaded for whoever asked for it, so passing the owner back out to
+ * the client would be telling it something it has no use for and cannot check.
+ * The api routes strip it, which is why the extension never has to know
+ * accounts exist at all.
  */
 
 export type Folder = {

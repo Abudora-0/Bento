@@ -1,4 +1,4 @@
-import { hasValidBearer, unauthorized } from "~/lib/auth"
+import { unauthorized, userFromBearer } from "~/lib/auth"
 import { corsJson, corsPreflight } from "~/lib/cors"
 import { listFolders } from "~/lib/db/folders"
 
@@ -10,7 +10,8 @@ export function OPTIONS(request: Request) {
 
 /** Feeds the popup's folder picker. The extension only reads folders, it does not manage them. */
 export async function GET(request: Request) {
-  if (!(await hasValidBearer(request))) return unauthorized(request)
+  const user = await userFromBearer(request)
+  if (!user) return unauthorized(request)
 
-  return corsJson(request, { folders: await listFolders() })
+  return corsJson(request, { folders: await listFolders(user.id) })
 }

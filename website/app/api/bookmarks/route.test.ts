@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { authed, setUpTestDatabase } from "~/lib/test-support"
+import { authed, makeUser, setUpTestDatabase } from "~/lib/test-support"
 
 await setUpTestDatabase()
 
 const { GET } = await import("./route.ts")
 const { upsertByUrl } = await import("~/lib/db/bookmarks")
+
+const user = await makeUser("recent@example.com")
 
 
 describe("GET /api/bookmarks", () => {
@@ -17,7 +19,7 @@ describe("GET /api/bookmarks", () => {
 
   it("returns the newest captures first, plus a total count", async () => {
     for (let i = 0; i < 3; i++) {
-      await upsertByUrl({
+      await upsertByUrl(user.id, {
         url: `https://example.com/${i}`,
         title: `Page ${i}`,
         faviconUrl: null,
@@ -28,7 +30,7 @@ describe("GET /api/bookmarks", () => {
       })
     }
 
-    const res = await GET(new Request("http://x/api/bookmarks?limit=2", authed()))
+    const res = await GET(new Request("http://x/api/bookmarks?limit=2", authed(user.api_token)))
     assert.equal(res.status, 200)
 
     const body = (await res.json()) as { bookmarks: { url: string }[]; total: number }
@@ -38,7 +40,7 @@ describe("GET /api/bookmarks", () => {
   })
 
   it("clamps an absurd limit rather than erroring", async () => {
-    const res = await GET(new Request("http://x/api/bookmarks?limit=99999", authed()))
+    const res = await GET(new Request("http://x/api/bookmarks?limit=99999", authed(user.api_token)))
     const body = (await res.json()) as { bookmarks: unknown[] }
     assert.ok(body.bookmarks.length <= 50)
   })

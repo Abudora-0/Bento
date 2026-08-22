@@ -72,7 +72,8 @@ function Leader() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Connect, replaces sign in. There is no account, just where the tray lives   */
+/* Connect. Not a sign in, the account already exists on the site, this pairs  */
+/* the browser to it with a token you can revoke without changing a password  */
 /* -------------------------------------------------------------------------- */
 
 function Connect({
@@ -83,7 +84,7 @@ function Connect({
   onConnected: (config: Config) => void
 }) {
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? "")
-  const [secret, setSecret] = useState(initial?.secret ?? "")
+  const [token, setToken] = useState(initial?.token ?? "")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -92,7 +93,7 @@ function Connect({
     setBusy(true)
     setError(null)
 
-    const config: Config = { siteUrl: siteUrl.trim().replace(/\/$/, ""), secret: secret.trim() }
+    const config: Config = { siteUrl: siteUrl.trim().replace(/\/$/, ""), token: token.trim() }
     const result = await testConnection(config)
 
     if (result.ok) {
@@ -109,8 +110,8 @@ function Connect({
     <div className="pad">
       <h1 className="head-2">Load the film</h1>
       <p className="lede">
-        Point this at your Bento site and enter its secret. That is the same value the site itself
-        asks your browser for.
+        Point this at your Bento site and paste your extension token. Sign in on the site, open
+        Settings, and copy it from there. It is not your password.
       </p>
 
       <form onSubmit={submit} className="stack" style={{ marginTop: 14 }}>
@@ -132,17 +133,19 @@ function Connect({
         </div>
 
         <div>
-          <label className="label" htmlFor="secret">
-            Secret
+          <label className="label" htmlFor="token">
+            Extension token
           </label>
           <input
-            id="secret"
+            id="token"
             className="field"
             type="password"
             required
             autoComplete="off"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
+            spellCheck={false}
+            placeholder="Settings on the site, Extension token"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
           />
         </div>
 

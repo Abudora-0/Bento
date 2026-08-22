@@ -1,4 +1,4 @@
-import { hasValidBearer, unauthorized } from "~/lib/auth"
+import { unauthorized, userFromBearer } from "~/lib/auth"
 import { deleteScreenshot, saveScreenshot } from "~/lib/blob"
 import { corsJson, corsPreflight } from "~/lib/cors"
 import { upsertByUrl } from "~/lib/db/bookmarks"
@@ -17,7 +17,8 @@ export function OPTIONS(request: Request) {
  * request, and merges it the same way saving from the website does.
  */
 export async function POST(request: Request) {
-  if (!(await hasValidBearer(request))) return unauthorized(request)
+  const user = await userFromBearer(request)
+  if (!user) return unauthorized(request)
 
   let form: FormData
   try {
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   // extension's storage. The foreign key would reject the whole capture over
   // it, so fall back to unfiled instead of failing a capture on a filing
   // detail, and tell the caller so it can forget the stale id.
-  const folderIdValid = Boolean(rawFolderId) && (await folderExists(rawFolderId))
+  const folderIdValid = Boolean(rawFolderId) && (await folderExists(user.id, rawFolderId))
   const folderId = folderIdValid ? rawFolderId : null
 
   let screenshotUrl: string | null = null
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
     // lettered mark, which is a designed state rather than an error.
   }
 
-  const { bookmark, updated, replacedScreenshotUrl } = await upsertByUrl({
+  const { bookmark, updated, replacedScreenshotUrl } = await upsertByUrl(user.id, {
     url,
     title,
     faviconUrl,

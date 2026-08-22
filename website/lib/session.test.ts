@@ -5,20 +5,22 @@ import { describe, it } from "node:test"
 // to exist before anything is imported. No database is involved at all here,
 // these are pure functions over a string.
 process.env.BENTO_SECRET = "session-test-secret-please-ignore"
-process.env.BENTO_USER = "session-test-user"
 
-const { SESSION_COOKIE, idleTimeoutMs, issueSession, readSession, sessionCookieOptions, username } =
+const { SESSION_COOKIE, idleTimeoutMs, issueSession, readSession, sessionCookieOptions } =
   await import("./session.ts")
 
+const USER = "11111111-1111-1111-1111-111111111111"
+
 describe("issueSession and readSession", () => {
-  it("accepts a token it just issued", async () => {
-    const result = await readSession(await issueSession())
+  it("accepts a token it just issued, and says who it belongs to", async () => {
+    const result = await readSession(await issueSession(USER))
+
     assert.equal(result.valid, true)
+    assert.equal(result.valid === true && result.userId, USER)
   })
 
   it("rejects a missing token", async () => {
-    const result = await readSession(undefined)
-    assert.deepEqual(result, { valid: false, reason: "invalid" })
+    assert.deepEqual(await readSession(undefined), { valid: false, reason: "invalid" })
   })
 
   it("rejects an empty or malformed token", async () => {
@@ -28,53 +30,71 @@ describe("issueSession and readSession", () => {
     }
   })
 
-  it("rejects a tampered payload", async () => {
-    const token = await issueSession()
-    const [payload, signature] = token.split(".")
+  it("rejects a payload that is signed but not valid json", async () => {
+    // A signature over garbage is still a signature, so the parse has to be
+    // guarded rather than trusted just because the HMAC checked out.
+    const result = await readSession("bm90LWpzb24.AAAA")
+    assert.equal(result.valid, false)
+  })
 
-    // Re-sign nothing, just move the clock forward in the payload and keep the
-    // old signature. This is the attack the HMAC exists to stop.
-    const forged = `${Buffer.from(String(Date.now())).toString("base64url")}.${signature}`
+  it("rejects a tampered payload, which is the attack the HMAC exists to stop", async () => {
+    const token = await issueSession(USER)
+    const [, signature] = token.split(".")
+
+    const forged = `${Buffer.from(JSON.stringify({ u: "someone-else", t: Date.now() })).toString("base64url")}.${signature}`
 
     assert.notEqual(forged, token)
-    assert.equal((await readSession(forged)).valid, false)
-    assert.notEqual(payload, undefined)
+    assert.equal((await readSession(forged)).valid, false, "must not be able to swap the user id")
   })
 
   it("rejects a tampered signature", async () => {
-    const [payload] = (await issueSession()).split(".")
+    const [payload] = (await issueSession(USER)).split(".")
     const result = await readSession(`${payload}.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`)
     assert.equal(result.valid, false)
   })
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await issueSession()
+    const token = await issueSession(USER)
 
     const original = process.env.BENTO_SECRET
     process.env.BENTO_SECRET = "a-completely-different-secret"
     const result = await readSession(token)
     process.env.BENTO_SECRET = original
 
-    // Rotating the secret should log you out, not silently keep you in.
+    // Rotating the secret should sign everybody out, not silently keep them in.
     assert.equal(result.valid, false)
   })
 
   it("expires a token older than the idle window", async () => {
     const old = Date.now() - idleTimeoutMs() - 1000
-    const result = await readSession(await issueSession(old))
-
-    assert.deepEqual(result, { valid: false, reason: "expired" })
+    assert.deepEqual(await readSession(await issueSession(USER, { issuedAt: old })), {
+      valid: false,
+      reason: "expired"
+    })
   })
 
   it("still accepts a token just inside the idle window", async () => {
     const recent = Date.now() - idleTimeoutMs() + 5000
-    const result = await readSession(await issueSession(recent))
+    assert.equal((await readSession(await issueSession(USER, { issuedAt: recent }))).valid, true)
+  })
 
-    assert.equal(result.valid, true)
+  it("expires a remembered session too, so remembering is not the same as never locking", async () => {
+    const old = Date.now() - idleTimeoutMs() - 1000
+    const token = await issueSession(USER, { remember: true, issuedAt: old })
+
+    assert.deepEqual(await readSession(token), { valid: false, reason: "expired" })
+  })
+
+  it("carries the remember flag through so middleware can preserve it", async () => {
+    const plain = await readSession(await issueSession(USER))
+    const remembered = await readSession(await issueSession(USER, { remember: true }))
+
+    assert.equal(plain.valid === true && plain.remember, false)
+    assert.equal(remembered.valid === true && remembered.remember, true)
   })
 
   it("distinguishes expired from invalid, so the lock screen can explain itself", async () => {
-    const expired = await readSession(await issueSession(Date.now() - idleTimeoutMs() - 1))
+    const expired = await readSession(await issueSession(USER, { issuedAt: Date.now() - idleTimeoutMs() - 1 }))
     assert.equal(expired.valid === false && expired.reason, "expired")
 
     const garbage = await readSession("not-a-token")
@@ -82,7 +102,7 @@ describe("issueSession and readSession", () => {
   })
 
   it("refuses a token issued in the future", async () => {
-    const result = await readSession(await issueSession(Date.now() + 10 * 60_000))
+    const result = await readSession(await issueSession(USER, { issuedAt: Date.now() + 10 * 60_000 }))
     assert.deepEqual(result, { valid: false, reason: "invalid" })
   })
 })
@@ -109,11 +129,18 @@ describe("idleTimeoutMs", () => {
 })
 
 describe("sessionCookieOptions", () => {
-  it("is a session cookie, so closing the browser drops it", () => {
-    const options = sessionCookieOptions(true) as Record<string, unknown>
+  it("dies with the browser unless remembering was asked for", () => {
+    const plain = sessionCookieOptions(true) as Record<string, unknown>
 
-    assert.equal("maxAge" in options, false, "a maxAge would outlive the browser session")
-    assert.equal("expires" in options, false, "an expiry would outlive the browser session")
+    assert.equal("maxAge" in plain, false, "a maxAge would outlive the browser session")
+    assert.equal("expires" in plain, false)
+  })
+
+  it("gets a lifetime when remembering", () => {
+    const remembered = sessionCookieOptions(true, true) as Record<string, unknown>
+
+    assert.equal(typeof remembered.maxAge, "number")
+    assert.ok((remembered.maxAge as number) > 24 * 60 * 60, "should outlast a day")
   })
 
   it("is httpOnly and same site, so script cannot read it and a cross site post cannot use it", () => {
@@ -133,14 +160,5 @@ describe("sessionCookieOptions", () => {
 describe("configuration", () => {
   it("names its cookie", () => {
     assert.equal(SESSION_COOKIE, "bento_session")
-  })
-
-  it("throws a useful message when BENTO_USER is unset", () => {
-    const original = process.env.BENTO_USER
-    delete process.env.BENTO_USER
-
-    assert.throws(() => username(), /BENTO_USER/)
-
-    process.env.BENTO_USER = original
   })
 })

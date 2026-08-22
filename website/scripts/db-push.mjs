@@ -42,7 +42,9 @@ console.log(`database  ${url}`)
 console.log(`token     ${authToken ? `present, ${authToken.length} characters` : "not needed"}`)
 
 const schemaSource = readFileSync(resolve(ROOT, "lib/db/schema.ts"), "utf8")
-const match = schemaSource.match(/`([\s\S]*)`/)
+// Anchored on the declaration. An unanchored match would start at the first
+// backtick anywhere in the file, and the doc comment above SCHEMA has one.
+const match = schemaSource.match(/export const SCHEMA = `([\s\S]*?)`/)
 if (!match) {
   console.error("Could not find the schema template literal in lib/db/schema.ts.")
   process.exit(1)

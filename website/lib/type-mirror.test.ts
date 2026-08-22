@@ -63,4 +63,11 @@ describe("mirrored database types", () => {
       assert.ok(source.includes(`${column}:`), `Bookmark is missing ${column}`)
     }
   })
+
+  it("does not carry user_id out to the client", () => {
+    // The column exists, these types do not describe it. Adding it here would
+    // ship an owner id to a surface that has no use for it and cannot verify
+    // it, so the omission is deliberate and worth pinning.
+    assert.equal(declarations(WEBSITE).includes("user_id"), false)
+  })
 })

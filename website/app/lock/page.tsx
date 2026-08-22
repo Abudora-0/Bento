@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 
 import { LockScreen } from "~/components/LockScreen"
 
+import { inviteRequired } from "./actions"
+
 export const metadata: Metadata = { title: "Locked" }
 export const dynamic = "force-dynamic"
 
@@ -16,5 +18,5 @@ export default async function LockPage({ searchParams }: { searchParams: SearchP
   const raw = params.next ?? "/app"
   const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app"
 
-  return <LockScreen next={next} idled={params.why === "idle"} />
+  return <LockScreen next={next} idled={params.why === "idle"} inviteRequired={await inviteRequired()} />
 }

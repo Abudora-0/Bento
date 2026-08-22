@@ -1,18 +1,20 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { authed, setUpTestDatabase } from "~/lib/test-support"
+import { authed, makeUser, setUpTestDatabase } from "~/lib/test-support"
 
 await setUpTestDatabase()
 
 const { POST, OPTIONS } = await import("./route.ts")
 const { createFolder } = await import("~/lib/db/folders")
 
+const user = await makeUser("capture@example.com")
+
 function jpegFile(byte: number, size = 16): File {
   return new File([new Uint8Array(size).fill(byte)], "shot.jpg", { type: "image/jpeg" })
 }
 
-function capture(fields: Record<string, string | File>, init: RequestInit = authed()) {
+function capture(fields: Record<string, string | File>, init: RequestInit = authed(user.api_token)) {
   const form = new FormData()
   for (const [key, value] of Object.entries(fields)) form.set(key, value)
 
@@ -66,7 +68,7 @@ describe("POST /api/capture", () => {
   })
 
   it("files into a folder that does exist", async () => {
-    const folder = await createFolder("Reading")
+    const folder = await createFolder(user.id, "Reading")
     assert.ok(folder.ok)
 
     const res = await capture({ url: "https://example.com/d", folderId: folder.ok ? folder.folder.id : "" })

@@ -2,10 +2,11 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 process.env.BENTO_SECRET = "middleware-test-secret-ignore"
-process.env.BENTO_USER = "middleware-test-user"
 
 const { middleware } = await import("./middleware.ts")
 const { SESSION_COOKIE, issueSession, idleTimeoutMs } = await import("./lib/session.ts")
+
+const USER = "11111111-1111-1111-1111-111111111111"
 
 /**
  * NextRequest is more than middleware actually touches. It reads the url, and
@@ -58,7 +59,7 @@ describe("middleware, locked", () => {
   })
 
   it("says when it locked itself, so the screen can explain", async () => {
-    const stale = await issueSession(Date.now() - idleTimeoutMs() - 1000)
+    const stale = await issueSession(USER, { issuedAt: Date.now() - idleTimeoutMs() - 1000 })
     const response = await middleware(request("/app", stale))
 
     assert.equal(locationOf(response)?.searchParams.get("why"), "idle")
@@ -70,7 +71,7 @@ describe("middleware, locked", () => {
   })
 
   it("clears the stale cookie on the way out", async () => {
-    const stale = await issueSession(Date.now() - idleTimeoutMs() - 1000)
+    const stale = await issueSession(USER, { issuedAt: Date.now() - idleTimeoutMs() - 1000 })
     const response = await middleware(request("/app", stale))
 
     // A cleared cookie is set to empty with an expiry in the past.
@@ -87,14 +88,14 @@ describe("middleware, the lock screen itself", () => {
   })
 
   it("still renders the lock screen when the cookie is merely stale", async () => {
-    const stale = await issueSession(Date.now() - idleTimeoutMs() - 1000)
+    const stale = await issueSession(USER, { issuedAt: Date.now() - idleTimeoutMs() - 1000 })
     const response = await middleware(request("/lock", stale))
 
     assert.equal(response.headers.get("location"), null)
   })
 
   it("bounces someone already unlocked off it", async () => {
-    const response = await middleware(request("/lock", await issueSession()))
+    const response = await middleware(request("/lock", await issueSession(USER)))
 
     assert.equal(locationOf(response)?.pathname, "/app")
   })
@@ -102,13 +103,13 @@ describe("middleware, the lock screen itself", () => {
 
 describe("middleware, unlocked", () => {
   it("lets a valid session through", async () => {
-    const response = await middleware(request("/app", await issueSession()))
+    const response = await middleware(request("/app", await issueSession(USER)))
 
     assert.equal(response.headers.get("location"), null)
   })
 
   it("slides the window forward on a session that has been open a while", async () => {
-    const older = await issueSession(Date.now() - 5 * 60_000)
+    const older = await issueSession(USER, { issuedAt: Date.now() - 5 * 60_000 })
     const response = await middleware(request("/app", older))
 
     const setCookie = response.headers.get("set-cookie") ?? ""
@@ -120,7 +121,7 @@ describe("middleware, unlocked", () => {
   })
 
   it("does not re-sign on every single navigation", async () => {
-    const response = await middleware(request("/app", await issueSession()))
+    const response = await middleware(request("/app", await issueSession(USER)))
 
     assert.equal(response.headers.get("set-cookie"), null)
   })

@@ -3,7 +3,7 @@
  *
  * Only one feature makes the server fetch a user supplied url on its own
  * initiative, the favicon lookup for a manually added bookmark, see
- * lib/favicon.ts. Bento is single user and already sits behind BENTO_SECRET,
+ * lib/favicon.ts. Only a signed in account can reach the form that triggers it,
  * so the realistic threat here is narrow, but "paste a URL, the server fetches
  * it" is exactly the shape of request that can be pointed at
  * 169.254.169.254 or an internal admin panel if this check is not here.

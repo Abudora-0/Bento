@@ -1,6 +1,9 @@
+import Link from "next/link"
+
 import { IdleWatcher } from "~/components/IdleWatcher"
 import { LockButton } from "~/components/LockButton"
 import { ExposureCount, Wordmark } from "~/components/Wordmark"
+import { requireUser } from "~/lib/current-user"
 import { countBookmarks } from "~/lib/db/bookmarks"
 import { idleTimeoutMs } from "~/lib/session"
 
@@ -11,13 +14,18 @@ import { idleTimeoutMs } from "~/lib/session"
  * by hand and a watcher that closes it after a stretch of no activity.
  */
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser()
+
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 pb-20 pt-5 sm:px-7">
       <header className="flex items-center justify-between gap-4">
         <Wordmark href="/app" />
 
-        <div className="flex items-center gap-4">
-          <ExposureCount count={await countBookmarks()} />
+        <div className="flex items-center gap-3">
+          <ExposureCount count={await countBookmarks(user.id)} />
+          <Link href="/settings" className="ghost" title={user.email}>
+            Settings
+          </Link>
           <LockButton />
         </div>
       </header>

@@ -3,12 +3,20 @@
 import { revalidatePath } from "next/cache"
 
 import { deleteScreenshot } from "~/lib/blob"
+import { requireUser } from "~/lib/current-user"
 import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
 import { discoverFaviconUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
+
+/*
+ * Every action starts by resolving who is calling and passes that id down. A
+ * server action is a public endpoint, not an internal function: anyone can post
+ * to it with any id they like, so the owner is taken from the session cookie
+ * rather than from anything the caller sent.
+ */
 
 function refresh() {
   revalidatePath("/app")
@@ -32,6 +40,8 @@ function folderIdFrom(formData: FormData): string | null {
  */
 export async function createBookmark(formData: FormData): Promise<ActionResult> {
   try {
+    const user = await requireUser()
+
     const url = normalizeUrl(String(formData.get("url") ?? ""))
     if (!url) return { ok: false, error: "That does not look like a web address." }
 
@@ -43,7 +53,7 @@ export async function createBookmark(formData: FormData): Promise<ActionResult> 
     // a lettered mark, which is by design.
     const faviconUrl = await discoverFaviconUrl(url).catch(() => null)
 
-    await bookmarks.upsertByUrl({
+    await bookmarks.upsertByUrl(user.id, {
       url,
       title: typedTitle || hostnameOf(url),
       faviconUrl,
@@ -62,10 +72,12 @@ export async function createBookmark(formData: FormData): Promise<ActionResult> 
 
 export async function updateBookmark(formData: FormData): Promise<ActionResult> {
   try {
+    const user = await requireUser()
+
     const id = String(formData.get("id") ?? "")
     if (!id) return { ok: false, error: "Missing bookmark id." }
 
-    const updated = await bookmarks.editBookmark(id, {
+    const updated = await bookmarks.editBookmark(user.id, id, {
       title: String(formData.get("title") ?? "").trim().slice(0, 500),
       notes: String(formData.get("notes") ?? "").slice(0, 10000),
       tags: parseTags(String(formData.get("tags") ?? "")),
@@ -83,7 +95,9 @@ export async function updateBookmark(formData: FormData): Promise<ActionResult> 
 
 export async function setStarred(id: string, starred: boolean): Promise<ActionResult> {
   try {
-    if (!(await bookmarks.setStarred(id, starred))) {
+    const user = await requireUser()
+
+    if (!(await bookmarks.setStarred(user.id, id, starred))) {
       return { ok: false, error: "That bookmark no longer exists." }
     }
 
@@ -96,7 +110,8 @@ export async function setStarred(id: string, starred: boolean): Promise<ActionRe
 
 export async function deleteBookmark(id: string): Promise<ActionResult> {
   try {
-    await deleteScreenshot(await bookmarks.deleteBookmark(id))
+    const user = await requireUser()
+    await deleteScreenshot(await bookmarks.deleteBookmark(user.id, id))
 
     refresh()
     return { ok: true }
@@ -110,10 +125,12 @@ export async function deleteBookmark(id: string): Promise<ActionResult> {
 /* -------------------------------------------------------------------------- */
 
 export async function createFolder(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser()
+
   const name = String(formData.get("name") ?? "").trim().slice(0, 60)
   if (!name) return { ok: false, error: "Give the folder a name." }
 
-  const result = await folders.createFolder(name)
+  const result = await folders.createFolder(user.id, name)
   if (!result.ok) return result
 
   refresh()
@@ -121,10 +138,12 @@ export async function createFolder(formData: FormData): Promise<ActionResult> {
 }
 
 export async function renameFolder(id: string, name: string): Promise<ActionResult> {
+  const user = await requireUser()
+
   const clean = name.trim().slice(0, 60)
   if (!clean) return { ok: false, error: "Give the folder a name." }
 
-  const result = await folders.renameFolder(id, clean)
+  const result = await folders.renameFolder(user.id, id, clean)
   if (!result.ok) return result
 
   refresh()
@@ -133,7 +152,11 @@ export async function renameFolder(id: string, name: string): Promise<ActionResu
 
 /** Deletes the folder. Bookmarks inside it survive and become unfiled. */
 export async function deleteFolder(id: string): Promise<ActionResult> {
-  if (!(await folders.deleteFolder(id))) return { ok: false, error: "That folder no longer exists." }
+  const user = await requireUser()
+
+  if (!(await folders.deleteFolder(user.id, id))) {
+    return { ok: false, error: "That folder no longer exists." }
+  }
 
   refresh()
   return { ok: true }

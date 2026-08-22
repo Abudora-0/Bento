@@ -4,7 +4,7 @@ import type { Bookmark, Folder } from "./types"
 function authedInit(config: Config, init: RequestInit = {}): RequestInit {
   return {
     ...init,
-    headers: { ...(init.headers ?? {}), authorization: `Bearer ${config.secret}` }
+    headers: { ...(init.headers ?? {}), authorization: `Bearer ${config.token}` }
   }
 }
 

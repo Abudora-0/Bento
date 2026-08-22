@@ -5,10 +5,10 @@ import { createClient, type Client, type InStatement } from "@libsql/client"
 /**
  * The database handle.
  *
- * Bento used to keep a SQLite file on disk, which was the right shape for a
- * single user until it needed to run somewhere without a disk. Turso is the
- * same engine reached over the network, so the schema in schema.ts applies
- * verbatim, `json_each` and `collate nocase` and all.
+ * Bento used to keep a SQLite file on disk, which was the right shape for it
+ * until it needed to run somewhere without a disk. Turso is the same engine
+ * reached over the network, so the schema in schema.ts applies verbatim,
+ * `json_each` and `collate nocase` and all.
  *
  * What changes is the cost model. A local query was measured in microseconds,
  * so making five of them to render a page was free. Each one is now a network

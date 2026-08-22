@@ -4,7 +4,7 @@
 
 **A contact sheet for everything you save.**
 
-A self hosted bookmark manager in two pieces: a browser extension that captures the tab you are looking at, and a site that lays every capture out as a frame on a contact sheet. SQLite for storage, one lock instead of accounts.
+A self hosted bookmark manager in two pieces: a browser extension that captures the tab you are looking at, and a site that lays every capture out as a frame on a contact sheet. SQLite for storage, accounts for the people you share it with.
 
 [![CI](https://github.com/Abudora-0/Bento/actions/workflows/ci.yml/badge.svg)](https://github.com/Abudora-0/Bento/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-c9a24a.svg)](LICENSE)
@@ -12,7 +12,7 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-4ff8d2.svg?logo=turso&logoColor=black)](https://turso.tech)
 [![Plasmo MV3](https://img.shields.io/badge/Plasmo-MV3-cc352c.svg)](https://www.plasmo.com)
-[![Tests](https://img.shields.io/badge/tests-117%20passing-78965a.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-160%20passing-78965a.svg)](#testing)
 
 </div>
 
@@ -22,12 +22,13 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 
 Bento is a bookmark manager built around one idea: a saved page is a photograph you took of the web, so it should be filed like one. Every capture becomes a numbered frame on a contact sheet, complete with sprocket holes, a date stamp, and a hand drawn grease pencil circle on the ones worth keeping.
 
-There is no sign up and no account system. One name and one secret open it, and the same secret is what the extension uses, so the two halves never need separate credentials.
+Sign up, and everything you save is yours. Bookmarks, folders and tags are scoped per account at the database level rather than filtered in application code, so two people using the same deployment never see each other's sheets.
 
 > **Screenshots.** Drop images into `docs/` and reference them here. There is no automated capture in the repo, so this section is deliberately left for you to fill in with the real thing rather than a mockup.
 
 ## Features
 
+- **Accounts**, so a handful of people can share one deployment and keep separate sheets
 - **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
 - **A real lock**, not a password prompt: closes when the browser closes, after inactivity, or on demand
@@ -67,21 +68,25 @@ Every query is a network round trip now, so the tray page sends its four reads a
 
 ## Security model
 
-There is one user, so there are no accounts. Two environment variables stand in for the whole thing.
+Two surfaces, two completely separate ways in. That separation is deliberate: the lock can change without the extension noticing, and a leaked extension token cannot be used to sign in.
 
-**The site** is behind a lock screen. Getting the name and secret right mints an HMAC signed session cookie, verified in middleware on every request. The cookie is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS, and carries no expiry, which makes it a session cookie: closing the browser drops it. The signed timestamp inside it enforces the idle window, and every navigation slides that window forward.
+**Passwords** are PBKDF2-HMAC-SHA256 at 210,000 iterations with a per user salt, stored as a self describing string so the cost can be raised later without locking out anyone who signed up before the change. PBKDF2 rather than argon2 because middleware runs on the Edge runtime, where Web Crypto is the only thing available and PBKDF2 is the only password function it offers. Verification compares over the full length without short circuiting. Signing in with an email nobody registered still runs a hash before answering, so the response time does not say which half of the guess was wrong.
 
-It locks again in three ways, which together are what stop somebody else on your machine opening it:
+**The site** mints an HMAC signed session cookie on a correct sign in, verified in middleware on every request. It is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS, and by default carries no expiry, which makes it a session cookie: closing the browser drops it. The signed timestamp inside enforces the idle window, and every navigation slides that window forward. Ticking **Stay signed in** gives the cookie a lifetime, and the idle window still applies on top of it.
 
-1. Closing the browser
+It locks again in three ways:
+
+1. Closing the browser, unless you asked to stay signed in
 2. Sitting idle for `BENTO_LOCK_MINUTES`, enforced by the server as well as the tab
 3. Pressing **Lock**
 
-**The extension** cannot answer a lock screen, so it sends the same secret as a bearer token, checked separately on each API route. That path is completely independent of the cookie, which is why changing the lock never requires re-pairing the extension.
+**The extension** cannot answer a lock screen, so it sends a per account token as a bearer token, checked on each API route. That token is not your password. It is generated for you at signup, and regenerating it under Settings cuts off every browser holding the old one without touching the account.
 
-Both credentials are compared in constant time, after hashing to a fixed length so a length mismatch leaks nothing. A failed attempt never says which half was wrong.
+**Isolation** is enforced in SQL, not in a filter somewhere. Every read and every write carries `user_id`, and the unique index on bookmarks is `(user_id, url)` rather than `url`, so two people can both save the same page. There is a test suite whose entire job is trying to reach another account's rows through each entry point.
 
-> **What this does not do.** It locks the web interface. Anyone holding `TURSO_AUTH_TOKEN` can read the database directly, and anyone holding `BENTO_SECRET` can drive the API without ever seeing the lock screen. Both are exactly as sensitive as the bookmarks themselves, so keep them in environment variables and out of the repository.
+> **What this does not do.** It protects the interfaces, not the bytes. Anyone holding `TURSO_AUTH_TOKEN` can read the whole database directly, past every account boundary in it. This is a self hosted app for a small number of people who already trust whoever runs it, and it is not multi tenant in the sense a commercial product would mean.
+
+Signup is open by default, which is what a portfolio piece wants. Setting `BENTO_INVITE_CODE` makes the form ask for that code, which closes a public deployment without taking signup down.
 
 ## Setup
 
@@ -103,11 +108,13 @@ Fill in `.env.local`:
 
 | Variable | What it is |
 | --- | --- |
-| `BENTO_USER` | The name you type on the lock screen |
-| `BENTO_SECRET` | The password, and the extension's bearer token. `openssl rand -hex 24` |
+| `BENTO_SECRET` | The key session cookies are signed with. Not a password, nobody ever types it. `openssl rand -hex 32` |
 | `BENTO_LOCK_MINUTES` | Idle minutes before it locks itself. Defaults to 30 |
+| `BENTO_INVITE_CODE` | Optional. Set it and the signup form asks for it |
 | `TURSO_DATABASE_URL` | From step 1 |
 | `TURSO_AUTH_TOKEN` | From step 1 |
+
+Changing `BENTO_SECRET` later signs everybody out, since it is the key their cookies were signed with. That is intended, not a bug.
 
 Create the tables, which is safe to run again at any time:
 
@@ -121,7 +128,7 @@ Then:
 npm run dev
 ```
 
-It runs at http://localhost:3000.
+It runs at http://localhost:3000. The first thing it shows is the lock screen, which has a **Create one** link. Make an account and you land on your sheet.
 
 ### 3. The extension
 
@@ -133,7 +140,7 @@ npm run dev
 
 Load it at `chrome://extensions`, switch on Developer mode, choose **Load unpacked**, and pick `extension/build/chrome-mv3-dev`. For a production bundle run `npm run build` and pick `extension/build/chrome-mv3-prod`.
 
-Open the popup. It asks for the site's address and the same `BENTO_SECRET`, and checks both before saving them.
+Open the popup. It asks for the site's address and your extension token, which is on the site under **Settings**. Copy it, paste it in, and the popup checks both fields against the real API before it saves them.
 
 ## Using it
 
@@ -144,6 +151,7 @@ Open the popup. It asks for the site's address and the same `BENTO_SECRET`, and 
 - **Search**: press `/` anywhere on the sheet
 - **Filter**: click a tag, pick a folder, or narrow to marked only
 - **Lock**: the Lock button in the header
+- **Pair another browser**: Settings has your extension token, and a Regenerate button for cutting an old one off
 
 Chrome will not let any extension screenshot its own pages, the web store, or local files. On those the popup says so rather than failing quietly.
 
@@ -154,7 +162,7 @@ cd website
 npm test
 ```
 
-117 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end.
+160 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
 
 The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
 
@@ -167,6 +175,7 @@ npm run dev         # development server
 npm run build       # production build
 npm run start       # run the production build
 npm run db:push     # apply the schema to whichever database is configured
+npm run db:reset    # drop every table and start over, refuses if there are rows
 npm test            # node:test
 npm run typecheck   # tsc --noEmit
 npm run lint
@@ -190,10 +199,10 @@ It runs on Vercel's free tier. Nothing is written to disk, so there is no volume
 
 1. Import the repository on Vercel and set **Root Directory** to `website`. It is a monorepo, and skipping this is the one mistake that fails confusingly.
 2. Under Storage, create a **Blob** store and connect it to the project. Vercel injects `BLOB_READ_WRITE_TOKEN` for you.
-3. Set `BENTO_USER`, `BENTO_SECRET`, `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as environment variables.
+3. Set `BENTO_SECRET`, `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as environment variables. Add `BENTO_INVITE_CODE` if you would rather signup were not open to whoever finds the url.
 4. Under Settings, Functions, set the region to match wherever your Turso database lives. This is worth doing: the app queries the database far more often than your browser queries the app, so the hop that matters is the one between them.
 5. Run `npm run db:push` once against the production database, if you have not already.
-6. Point the extension popup at the deployed url, using the same `BENTO_SECRET`.
+6. Sign up on the deployed site, open Settings, and point the extension popup at the url with the token it shows you.
 
 Fonts are self hosted from Fontsource rather than fetched by `next/font/google`, so the build makes no network calls for them.
 

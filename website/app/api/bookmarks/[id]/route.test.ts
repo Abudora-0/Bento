@@ -1,15 +1,17 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { authed, setUpTestDatabase } from "~/lib/test-support"
+import { authed, makeUser, setUpTestDatabase } from "~/lib/test-support"
 
 await setUpTestDatabase()
 
 const { PATCH } = await import("./route.ts")
 const { upsertByUrl } = await import("~/lib/db/bookmarks")
 
+const user = await makeUser("star@example.com")
 
-function patch(id: string, body: unknown, init: RequestInit = authed()) {
+
+function patch(id: string, body: unknown, init: RequestInit = authed(user.api_token)) {
   return PATCH(
     new Request(`http://x/api/bookmarks/${id}`, {
       ...init,
@@ -28,7 +30,7 @@ describe("PATCH /api/bookmarks/[id]", () => {
   })
 
   it("stars an existing bookmark", async () => {
-    const { bookmark } = await upsertByUrl({
+    const { bookmark } = await upsertByUrl(user.id, {
       url: "https://example.com/star-me",
       title: "Star me",
       faviconUrl: null,

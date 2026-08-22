@@ -6,6 +6,7 @@ import { FolderRail } from "~/components/FolderRail"
 import { Pagination } from "~/components/Pagination"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
+import { requireUser } from "~/lib/current-user"
 import { loadTray } from "~/lib/db/bookmarks"
 import { PAGE_SIZE, pageOffset, parsePage, totalPages } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
@@ -25,6 +26,7 @@ type SearchParams = Promise<{
 
 export default async function TrayPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
+  const user = await requireUser()
 
   const q = (params.q ?? "").trim().slice(0, 120)
   const tag = (params.tag ?? "").trim().slice(0, 32)
@@ -35,7 +37,7 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   const page = parsePage(params.page)
   const from = pageOffset(page)
 
-  const { rows, total, folders: allFolders, allTags } = await loadTray({
+  const { rows, total, folders: allFolders, allTags } = await loadTray(user.id, {
     q: q || undefined,
     tag: tag || undefined,
     folder: folder || undefined,

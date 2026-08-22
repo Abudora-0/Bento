@@ -1,55 +1,25 @@
 import { corsJson } from "./cors.ts"
+import { findUserByApiToken, type User } from "./db/users.ts"
 
 /**
- * Bento is single user, so there is no account system, just one secret shared
- * between this server and whoever is allowed to use it: your own browser (via
- * the Basic Auth prompt in middleware.ts) and the extension (via a bearer
- * token on the api routes it calls).
+ * Who is asking, for the api routes.
  *
- * middleware.ts runs on the Edge runtime, which has no node:crypto, so this
- * uses the Web Crypto global (crypto.subtle) instead. It is available in both
- * the Edge runtime and Node, so the same check works in the api routes too.
+ * The extension authenticates with a per user token rather than a shared
+ * secret, so this both authenticates and identifies in one step: a token that
+ * resolves to nobody is rejected, and a token that resolves tells the route
+ * whose bookmarks it is allowed to touch.
+ *
+ * The site's own pages use a different path entirely, see current-user.ts.
+ * Keeping the two apart is what lets the lock change without the extension
+ * noticing, and it keeps this file free of next/headers so tests can import a
+ * route handler without a request context.
  */
-
-export function secret(): string {
-  const value = process.env.BENTO_SECRET
-
-  if (!value || value.length < 8) {
-    throw new Error(
-      "Missing or too short BENTO_SECRET. Set one in website/.env.local, at least 8 characters. " +
-        "This is the password both your browser and the extension use to reach your tray."
-    )
-  }
-
-  return value
-}
-
-async function sha256(text: string): Promise<Uint8Array> {
-  const bytes = new TextEncoder().encode(text)
-  const digest = await crypto.subtle.digest("SHA-256", bytes)
-  return new Uint8Array(digest)
-}
-
-/**
- * Constant time comparison. Hashing both sides to a fixed length first means a
- * length mismatch does not itself leak anything through timing, and the fixed
- * length loop below does not short circuit on the first differing byte.
- */
-export async function secretsMatch(a: string, b: string): Promise<boolean> {
-  const [left, right] = await Promise.all([sha256(a), sha256(b)])
-
-  let diff = 0
-  for (let i = 0; i < left.length; i++) diff |= left[i] ^ right[i]
-  return diff === 0
-}
-
-/** Checks a request's "Authorization: Bearer <token>" header against the secret. */
-export async function hasValidBearer(request: Request): Promise<boolean> {
+export async function userFromBearer(request: Request): Promise<User | null> {
   const header = request.headers.get("authorization") ?? ""
   const match = /^Bearer (.+)$/.exec(header)
-  if (!match) return false
+  if (!match) return null
 
-  return secretsMatch(match[1], secret())
+  return findUserByApiToken(match[1].trim())
 }
 
 export function unauthorized(request: Request): Response {

@@ -1,26 +1,45 @@
 /**
- * The whole schema, applied with CREATE TABLE IF NOT EXISTS so opening the
- * database for the first time is the migration. There is no separate
- * migrations directory, there is one file and one user.
+ * The whole schema, applied with `npm run db:push`.
+ *
+ * Every statement is CREATE IF NOT EXISTS, so pushing repeatedly is safe. What
+ * it will not do is alter a table that already exists, so adding a column to a
+ * live database needs an ALTER by hand rather than an edit here.
  */
 export const SCHEMA = `
+create table if not exists users (
+  id            text primary key,
+  email         text not null check (length(trim(email)) between 3 and 254),
+  password_hash text not null,
+  -- What the browser extension sends instead of a password. One per user,
+  -- regenerable, so a leaked token can be cut off without a password reset.
+  api_token     text not null,
+  created_at    text not null
+);
+
+-- Case insensitive, so nobody signs up twice with different capitalisation.
+create unique index if not exists users_email_key on users (email collate nocase);
+create unique index if not exists users_api_token_key on users (api_token);
+
 create table if not exists folders (
   id         text primary key,
+  user_id    text not null references users (id) on delete cascade,
   name       text not null check (length(trim(name)) between 1 and 60),
   created_at text not null
 );
 
--- One folder name, case insensitive, same rule the old Postgres unique index had.
-create unique index if not exists folders_name_key on folders (name collate nocase);
+-- One folder name per person, not one globally.
+create unique index if not exists folders_user_name_key on folders (user_id, name collate nocase);
+create index if not exists folders_user_idx on folders (user_id);
 
 create table if not exists bookmarks (
   id             text primary key,
+  user_id        text not null references users (id) on delete cascade,
   url            text not null check (length(url) between 1 and 4000),
   title          text not null default '' check (length(title) <= 500),
   favicon_url    text,
   screenshot_url text,
   -- A JSON array of strings, "[]" when empty. SQLite has no array column, and
-  -- json_each() below gives real containment queries instead of LIKE guessing.
+  -- json_each() gives real containment queries instead of LIKE guessing.
   tags           text not null default '[]',
   notes          text not null default '' check (length(notes) <= 10000),
   folder_id      text references folders (id) on delete set null,
@@ -29,9 +48,15 @@ create table if not exists bookmarks (
   updated_at     text not null
 );
 
-create unique index if not exists bookmarks_url_key on bookmarks (url);
-create index if not exists bookmarks_folder_idx on bookmarks (folder_id);
-create index if not exists bookmarks_created_idx on bookmarks (created_at desc, id);
-create index if not exists bookmarks_updated_idx on bookmarks (updated_at desc, id);
-create index if not exists bookmarks_title_idx on bookmarks (title, id);
+-- Re-capturing merges rather than duplicating, per person. Two people saving
+-- the same page each get their own row, which is the point.
+create unique index if not exists bookmarks_user_url_key on bookmarks (user_id, url);
+
+create index if not exists bookmarks_user_folder_idx on bookmarks (user_id, folder_id);
+
+-- One index per sort the sheet offers, each carrying the id tiebreak that
+-- keeps paging stable when rows share a sort key.
+create index if not exists bookmarks_user_created_idx on bookmarks (user_id, created_at desc, id);
+create index if not exists bookmarks_user_updated_idx on bookmarks (user_id, updated_at desc, id);
+create index if not exists bookmarks_user_title_idx on bookmarks (user_id, title, id);
 `

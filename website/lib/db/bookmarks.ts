@@ -58,9 +58,10 @@ export type ListOptions = {
 type SqlParam = string | number | null
 
 /** The WHERE clause and its arguments, shared by the count and the page of rows. */
-function buildFilter(opts: ListOptions): { clause: string; args: SqlParam[] } {
-  const where: string[] = []
-  const args: SqlParam[] = []
+function buildFilter(userId: string, opts: ListOptions): { clause: string; args: SqlParam[] } {
+  // Always first, and never optional. Everything else narrows within it.
+  const where: string[] = ["bookmarks.user_id = ?"]
+  const args: SqlParam[] = [userId]
 
   if (opts.folder === "none") {
     where.push("bookmarks.folder_id is null")
@@ -84,7 +85,7 @@ function buildFilter(opts: ListOptions): { clause: string; args: SqlParam[] } {
     args.push(like, like, like)
   }
 
-  return { clause: where.length ? `where ${where.join(" and ")}` : "", args }
+  return { clause: `where ${where.join(" and ")}`, args }
 }
 
 export type TrayData = {
@@ -102,8 +103,8 @@ export type TrayData = {
  * and about 320ms of stacked latency against a network database. Batching them
  * is the single biggest thing keeping the page quick.
  */
-export async function loadTray(opts: ListOptions): Promise<TrayData> {
-  const { clause, args } = buildFilter(opts)
+export async function loadTray(userId: string, opts: ListOptions): Promise<TrayData> {
+  const { clause, args } = buildFilter(userId, opts)
 
   // The sort column comes from lib/sort.ts's fixed enum, never straight from
   // the request, so interpolating it cannot be used for injection the way
@@ -121,8 +122,8 @@ export async function loadTray(opts: ListOptions): Promise<TrayData> {
             limit ? offset ?`,
       args: [...args, opts.limit, opts.offset]
     },
-    LIST_FOLDERS_SQL,
-    "select tags from bookmarks"
+    { sql: LIST_FOLDERS_SQL, args: [userId] },
+    { sql: "select tags from bookmarks where user_id = ?", args: [userId] }
   ]
 
   const [count, page, folders, tags] = await readBatch(statements)
@@ -135,13 +136,19 @@ export async function loadTray(opts: ListOptions): Promise<TrayData> {
   }
 }
 
-export async function getBookmark(id: string): Promise<Bookmark | null> {
-  const { rows } = await db().execute({ sql: "select * from bookmarks where id = ?", args: [id] })
+export async function getBookmark(userId: string, id: string): Promise<Bookmark | null> {
+  const { rows } = await db().execute({
+    sql: "select * from bookmarks where id = ? and user_id = ?",
+    args: [id, userId]
+  })
   return rows.length > 0 ? rowToBookmark(rows[0] as Row) : null
 }
 
-async function getBookmarkByUrl(url: string): Promise<Row | null> {
-  const { rows } = await db().execute({ sql: "select * from bookmarks where url = ?", args: [url] })
+async function getBookmarkByUrl(userId: string, url: string): Promise<Row | null> {
+  const { rows } = await db().execute({
+    sql: "select * from bookmarks where url = ? and user_id = ?",
+    args: [url, userId]
+  })
   return rows.length > 0 ? (rows[0] as Row) : null
 }
 
@@ -171,8 +178,8 @@ export type UpsertResult = {
  * new one was supplied, and only moves it to a new folder if one was chosen,
  * so leaving the picker on Unfiled does not drag a filed bookmark back out.
  */
-export async function upsertByUrl(input: CaptureInput): Promise<UpsertResult> {
-  const existing = await getBookmarkByUrl(input.url)
+export async function upsertByUrl(userId: string, input: CaptureInput): Promise<UpsertResult> {
+  const existing = await getBookmarkByUrl(userId, input.url)
 
   if (existing) {
     const existingTags = JSON.parse(text(existing.tags) || "[]") as string[]
@@ -187,7 +194,7 @@ export async function upsertByUrl(input: CaptureInput): Promise<UpsertResult> {
     await db().execute({
       sql: `update bookmarks
             set title = ?, favicon_url = ?, screenshot_url = ?, tags = ?, notes = ?, folder_id = ?, updated_at = ?
-            where id = ?`,
+            where id = ? and user_id = ?`,
       args: [
         input.title || text(existing.title),
         input.faviconUrl ?? nullableText(existing.favicon_url),
@@ -196,12 +203,13 @@ export async function upsertByUrl(input: CaptureInput): Promise<UpsertResult> {
         notes,
         input.folderId ?? nullableText(existing.folder_id),
         now(),
-        String(existing.id)
+        String(existing.id),
+        userId
       ]
     })
 
     return {
-      bookmark: (await getBookmark(String(existing.id))) as Bookmark,
+      bookmark: (await getBookmark(userId, String(existing.id))) as Bookmark,
       updated: true,
       replacedScreenshotUrl
     }
@@ -212,10 +220,11 @@ export async function upsertByUrl(input: CaptureInput): Promise<UpsertResult> {
 
   await db().execute({
     sql: `insert into bookmarks
-            (id, url, title, favicon_url, screenshot_url, tags, notes, folder_id, starred, created_at, updated_at)
-          values (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+            (id, user_id, url, title, favicon_url, screenshot_url, tags, notes, folder_id, starred, created_at, updated_at)
+          values (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     args: [
       id,
+      userId,
       input.url,
       input.title.slice(0, 500),
       input.faviconUrl,
@@ -228,7 +237,11 @@ export async function upsertByUrl(input: CaptureInput): Promise<UpsertResult> {
     ]
   })
 
-  return { bookmark: (await getBookmark(id)) as Bookmark, updated: false, replacedScreenshotUrl: null }
+  return {
+    bookmark: (await getBookmark(userId, id)) as Bookmark,
+    updated: false,
+    replacedScreenshotUrl: null
+  }
 }
 
 export type EditInput = {
@@ -239,46 +252,57 @@ export type EditInput = {
 }
 
 /** The website editor. Deliberately does not touch the screenshot or favicon. */
-export async function editBookmark(id: string, input: EditInput): Promise<Bookmark | null> {
+export async function editBookmark(
+  userId: string,
+  id: string,
+  input: EditInput
+): Promise<Bookmark | null> {
   const result = await db().execute({
-    sql: "update bookmarks set title = ?, notes = ?, tags = ?, folder_id = ?, updated_at = ? where id = ?",
-    args: [input.title, input.notes, JSON.stringify(input.tags), input.folderId, now(), id]
+    sql: `update bookmarks set title = ?, notes = ?, tags = ?, folder_id = ?, updated_at = ?
+          where id = ? and user_id = ?`,
+    args: [input.title, input.notes, JSON.stringify(input.tags), input.folderId, now(), id, userId]
   })
 
-  return result.rowsAffected > 0 ? getBookmark(id) : null
+  return result.rowsAffected > 0 ? getBookmark(userId, id) : null
 }
 
-export async function setStarred(id: string, starred: boolean): Promise<boolean> {
+export async function setStarred(userId: string, id: string, starred: boolean): Promise<boolean> {
   const result = await db().execute({
-    sql: "update bookmarks set starred = ?, updated_at = ? where id = ?",
-    args: [starred ? 1 : 0, now(), id]
+    sql: "update bookmarks set starred = ?, updated_at = ? where id = ? and user_id = ?",
+    args: [starred ? 1 : 0, now(), id, userId]
   })
 
   return result.rowsAffected > 0
 }
 
 /** Returns the screenshot url so the caller can remove it, or null if there was none. */
-export async function deleteBookmark(id: string): Promise<string | null> {
+export async function deleteBookmark(userId: string, id: string): Promise<string | null> {
   const { rows } = await db().execute({
-    sql: "select screenshot_url from bookmarks where id = ?",
-    args: [id]
+    sql: "select screenshot_url from bookmarks where id = ? and user_id = ?",
+    args: [id, userId]
   })
 
   if (rows.length === 0) return null
 
-  await db().execute({ sql: "delete from bookmarks where id = ?", args: [id] })
+  await db().execute({
+    sql: "delete from bookmarks where id = ? and user_id = ?",
+    args: [id, userId]
+  })
   return nullableText((rows[0] as Row).screenshot_url)
 }
 
-export async function countBookmarks(): Promise<number> {
-  const { rows } = await db().execute("select count(*) as n from bookmarks")
+export async function countBookmarks(userId: string): Promise<number> {
+  const { rows } = await db().execute({
+    sql: "select count(*) as n from bookmarks where user_id = ?",
+    args: [userId]
+  })
   return Number((rows[0] as Row).n)
 }
 
-export async function recentBookmarks(limit: number): Promise<Bookmark[]> {
+export async function recentBookmarks(userId: string, limit: number): Promise<Bookmark[]> {
   const { rows } = await db().execute({
-    sql: "select * from bookmarks order by created_at desc, id desc limit ?",
-    args: [limit]
+    sql: "select * from bookmarks where user_id = ? order by created_at desc, id desc limit ?",
+    args: [userId, limit]
   })
 
   return rows.map((row) => rowToBookmark(row as Row))
