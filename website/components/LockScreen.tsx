@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react"
 
 import { signIn, signUp } from "~/app/lock/actions"
 
-import { GreaseCircle } from "./Wordmark"
+import { GreaseCircle, Letters, Mark } from "./Wordmark"
 
 type Phase = "closed" | "opening" | "rejected"
 type Mode = "in" | "up"
@@ -119,7 +119,13 @@ export function LockScreen({
       <div className="pointer-events-none absolute inset-0 flex">
         <LidHalf side="left" opening={opening}>
           <div className="pointer-events-auto mx-auto w-full max-w-sm px-6 py-8 sm:px-10 md:ml-auto md:mr-0 md:pr-16">
-            <p className="label">Bento</p>
+            {/* The mark, but not the link: there is nowhere to go from here. */}
+            <div className="flex items-center gap-2.5">
+              <Mark className="h-7 w-7 shrink-0" animate />
+              <span className="block h-[17px] text-print">
+                <Letters />
+              </span>
+            </div>
             <h1 className="head-2 mt-3">
               {signingUp ? "New roll" : idled ? "Locked itself" : "Closed"}
             </h1>

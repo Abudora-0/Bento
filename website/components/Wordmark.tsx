@@ -82,7 +82,7 @@ const WORD_WIDTH = 118
  * The accessible name comes from the link that wraps it, so this carries no
  * text of its own and is hidden from assistive technology.
  */
-function Letters({ animate }: { animate: boolean }) {
+export function Letters({ animate = true }: { animate?: boolean }) {
   return (
     <svg
       viewBox={`0 0 ${WORD_WIDTH} 23`}
