@@ -9,6 +9,7 @@ import { SORT_OPTIONS, type SortKey } from "~/lib/sort"
 import type { Folder } from "~/types/db"
 
 import { AddBookmarkDialog } from "./AddBookmarkDialog"
+import { Select } from "./Select"
 
 export function TrayToolbar({
   initialQuery,
@@ -91,26 +92,18 @@ export function TrayToolbar({
           </kbd>
         </div>
 
-        <label className="sr-only" htmlFor="tray-sort">
-          Order the sheet
-        </label>
-        <select
+        <Select
           id="tray-sort"
+          ariaLabel="Order the sheet"
           value={sort}
-          onChange={(e) => {
-            const next = e.target.value as SortKey
-            router.replace(trayHref(searchParams, { sort: next === "new" ? null : next }), {
+          options={SORT_OPTIONS.map((option) => ({ value: option.key, label: option.label }))}
+          onChange={(next) => {
+            router.replace(trayHref(searchParams, { sort: next === "new" ? null : (next as SortKey) }), {
               scroll: false
             })
           }}
-          className="field w-auto shrink-0 cursor-pointer py-2! text-[11px]"
-        >
-          {SORT_OPTIONS.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          className="w-[10.5rem] shrink-0"
+        />
 
         <button type="button" onClick={() => setAdding(true)} className="shrink-0 shutter">
           Add

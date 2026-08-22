@@ -118,7 +118,7 @@ export function LockScreen({
 
       <div className="pointer-events-none absolute inset-0 flex">
         <LidHalf side="left" opening={opening}>
-          <div className="pointer-events-auto ml-auto w-full max-w-sm px-6 py-8 sm:px-10">
+          <div className="pointer-events-auto mx-auto w-full max-w-sm px-6 py-8 sm:px-10 md:ml-auto md:mr-0 md:pr-16">
             <p className="label">Bento</p>
             <h1 className="head-2 mt-3">
               {signingUp ? "New roll" : idled ? "Locked itself" : "Closed"}
@@ -131,9 +131,13 @@ export function LockScreen({
                   : "Everything you saved is behind this."}
             </p>
 
+            <div className="section-rule mt-6">
+              <span>{signingUp ? "Load a roll" : "The door"}</span>
+            </div>
+
             <form
               onSubmit={onSubmit}
-              className={`mt-6 space-y-3 ${phase === "rejected" ? "animate-reject" : ""}`}
+              className={`mt-5 space-y-3 ${phase === "rejected" ? "animate-reject" : ""}`}
             >
               {signingUp ? (
                 <>
@@ -256,30 +260,32 @@ export function LockScreen({
                 {opening ? "Opening" : pending ? "Checking" : signingUp ? "Create account" : "Open"}
               </button>
 
-              <button
-                type="button"
-                className="ghost w-full pt-1"
-                onClick={() => {
-                  setMode(signingUp ? "in" : "up")
-                  setError(null)
-                  // Never carry a revealed password across the switch. The
-                  // fields are being replaced anyway, and leaving it on would
-                  // mean the next form starts with its password in the clear.
-                  setShown(false)
-                }}
-              >
-                {signingUp ? "I already have an account" : "Create an account"}
-              </button>
+              <div className="segmented" role="group" aria-label="Sign in or create an account">
+                {(["in", "up"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={mode === option}
+                    onClick={() => {
+                      if (mode === option) return
+                      setMode(option)
+                      setError(null)
+                      // Never carry a revealed password across the switch. The
+                      // fields are being replaced anyway, and leaving it on
+                      // would start the next form with its password in clear.
+                      setShown(false)
+                    }}
+                  >
+                    {option === "in" ? "Sign in" : "New account"}
+                  </button>
+                ))}
+              </div>
             </form>
           </div>
         </LidHalf>
 
         <LidHalf side="right" opening={opening}>
-          <div
-            className={`h-24 w-24 transition-opacity duration-200 ${opening ? "opacity-100" : "opacity-0"}`}
-          >
-            <GreaseCircle marked draw={opening} />
-          </div>
+          <PrintedLid opening={opening} />
         </LidHalf>
       </div>
     </main>
@@ -338,6 +344,76 @@ function RevealField({
   )
 }
 
+/**
+ * What is printed on the right lid: a contact sheet.
+ *
+ * The half used to be empty until the opening animation ran, which on a wide
+ * screen meant half the page was doing nothing at all and the whole thing read
+ * as unfinished rather than as a closed box. Putting the sheet here also makes
+ * the metaphor work in the right order: this is the thing the lid is hiding,
+ * printed on its underside, and it is already coming through before the lid
+ * parts.
+ *
+ * Entirely decorative, so it is hidden from assistive technology. The numbers
+ * are fixed rather than random, because a value that differs between the
+ * server render and the client one is a hydration mismatch.
+ */
+function PrintedLid({ opening }: { opening: boolean }) {
+  const cells = [
+    { span: 3, tall: true, exposed: true, marked: true },
+    { span: 3, tall: true, exposed: false, marked: false },
+    { span: 2, tall: false, exposed: true, marked: false },
+    { span: 4, tall: false, exposed: false, marked: false },
+    { span: 2, tall: false, exposed: false, marked: false },
+    { span: 4, tall: true, exposed: true, marked: false },
+    { span: 3, tall: false, exposed: false, marked: false },
+    { span: 3, tall: false, exposed: true, marked: false }
+  ]
+
+  return (
+    <div
+      aria-hidden
+      className={`w-full max-w-md px-8 py-10 transition-opacity duration-500 ${
+        opening ? "opacity-0" : "opacity-100"
+      }`}
+    >
+      <div className="flex items-baseline justify-between">
+        <span className="label">Contact sheet</span>
+        <span className="frame-stamp">Roll 01</span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-6 gap-2">
+        {cells.map((cell, i) => (
+          <div
+            key={i}
+            className={cell.exposed ? "frame relative" : "frame-blank relative"}
+            style={{
+              gridColumn: `span ${cell.span}`,
+              height: cell.tall ? 84 : 52,
+              animation: `develop-in 700ms ${240 + i * 70}ms backwards`
+            }}
+          >
+            {cell.exposed ? (
+              <span className="frame-no absolute left-1.5 top-1">{String(i + 1).padStart(2, "0")}</span>
+            ) : null}
+
+            {cell.marked ? (
+              <span className="absolute bottom-1 right-1 h-7 w-7">
+                <GreaseCircle marked draw />
+              </span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-baseline justify-between">
+        <span className="frame-stamp">08 exp</span>
+        <span className="frame-stamp">Locked</span>
+      </div>
+    </div>
+  )
+}
+
 function LidHalf({
   side,
   opening,
@@ -349,7 +425,9 @@ function LidHalf({
 }) {
   return (
     <div
-      className="relative flex w-1/2 items-center justify-center overflow-y-auto bg-darkroom"
+      className={`relative flex items-center justify-center overflow-y-auto bg-darkroom ${
+        side === "left" ? "w-full md:w-1/2" : "hidden md:flex md:w-1/2"
+      }`}
       style={{
         // The two halves are mirror images, so one keyframe drives both and
         // the sign of --dir decides which way each one swings.

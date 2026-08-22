@@ -7,6 +7,7 @@ import { hostnameOf, isoDate, prettyPath } from "~/lib/format"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
 
 import { Modal, ModalHeader } from "./Modal"
+import { Select, folderOptions } from "./Select"
 
 export function BookmarkEditor({
   bookmark,
@@ -20,8 +21,17 @@ export function BookmarkEditor({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [folderId, setFolderId] = useState(bookmark.folder_id ?? "none")
 
-  function onSubmit(formData: FormData) {
+  /*
+   * A submit handler rather than <form action={fn}>. React clears an
+   * uncontrolled form once its action prop resolves, which is right when the
+   * dialog closes and wrong when it does not: a rejected save would wipe the
+   * edits along with the error.
+   */
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
     setError(null)
     startTransition(async () => {
       const result = await updateBookmark(formData)
@@ -52,7 +62,7 @@ export function BookmarkEditor({
         </div>
       ) : null}
 
-      <form action={onSubmit} className="mt-5 space-y-4">
+      <form onSubmit={onSubmit} className="mt-5 space-y-4">
         <input type="hidden" name="id" value={bookmark.id} />
 
         <div>
@@ -85,19 +95,15 @@ export function BookmarkEditor({
           <label htmlFor="folder_id" className="label">
             Filed under
           </label>
-          <select
+          <Select
             id="folder_id"
             name="folder_id"
-            defaultValue={bookmark.folder_id ?? "none"}
-            className="field mt-2 cursor-pointer"
-          >
-            <option value="none">Unfiled</option>
-            {folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.name}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Filed under"
+            value={folderId}
+            options={folderOptions(folders)}
+            onChange={setFolderId}
+            className="mt-2"
+          />
         </div>
 
         <div>
