@@ -16,7 +16,12 @@ export function BookmarkCell({
   tall,
   wide,
   frame,
-  index
+  index,
+  cursored = false,
+  selected = false,
+  selecting = false,
+  onSelect,
+  onLoupe
 }: {
   bookmark: BookmarkWithFolder
   folders: Folder[]
@@ -27,11 +32,34 @@ export function BookmarkCell({
   frame: number
   /** Position on this page, used only to stagger the develop animation. */
   index: number
+  /** Whether the keyboard cursor is on this frame. */
+  cursored?: boolean
+  selected?: boolean
+  /** Whether anything at all is selected, which is what reveals the boxes. */
+  selecting?: boolean
+  onSelect?: () => void
+  onLoupe?: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [starred, setLocalStarred] = useState(bookmark.starred)
   const [justStarred, setJustStarred] = useState(false)
   const [, startTransition] = useTransition()
+
+  /*
+   * The mark is held locally so clicking it feels instant, which means it has
+   * to be put back in step when the server sends a different answer. Without
+   * this, marking a batch from the selection bar updates the database and the
+   * frames carry on showing their old state until something remounts them.
+   *
+   * Adjusted during render rather than in an effect, so there is no frame where
+   * the pencil shows the wrong thing.
+   */
+  const [serverStarred, setServerStarred] = useState(bookmark.starred)
+  if (bookmark.starred !== serverStarred) {
+    setServerStarred(bookmark.starred)
+    setLocalStarred(bookmark.starred)
+    setJustStarred(false)
+  }
 
   const host = hostnameOf(bookmark.url)
   const title = bookmark.title?.trim() || host
@@ -57,22 +85,55 @@ export function BookmarkCell({
   return (
     <>
       <article
+        data-cursored={cursored || undefined}
+        data-selected={selected || undefined}
         className={`frame frame-hover animate-develop group/frame flex flex-col overflow-hidden ${className}`}
         // Capped so page two does not sit there developing for four seconds.
         style={{ animationDelay: `${Math.min(index, 11) * 45}ms` }}
       >
-        {/* The whole frame opens the page. Controls sit above this layer. */}
+        {/*
+          The whole frame opens the page. Controls sit above this layer at
+          z-20, which is the only reason they are clickable at all.
+
+          Shift click has to be caught here rather than on the article: this
+          element is on top, so it would otherwise swallow the modifier and
+          just navigate.
+        */}
         <a
           href={bookmark.url}
           target="_blank"
           rel="noreferrer noopener"
           className="absolute inset-0 z-10"
+          onClick={(event) => {
+            if (!onSelect) return
+            if (event.shiftKey || selecting) {
+              event.preventDefault()
+              onSelect()
+            }
+          }}
         >
           <span className="sr-only">Open {title}</span>
         </a>
 
         <div className="relative flex items-center justify-between gap-2">
-          <span className="frame-no shrink-0">{String(frame).padStart(2, "0")}</span>
+          <div className="relative z-20 flex shrink-0 items-center gap-1.5">
+            <input
+              type="checkbox"
+              className={`check ${selecting || selected ? "" : "opacity-0 group-hover/frame:opacity-100"}`}
+              checked={selected}
+              onChange={() => onSelect?.()}
+              aria-label={`Select ${title}`}
+            />
+            <button
+              type="button"
+              onClick={() => onLoupe?.()}
+              className="frame-no cursor-pointer transition-colors hover:text-grease-lit"
+              title="Look at this one closely"
+              aria-label={`Loupe on ${title}`}
+            >
+              {String(frame).padStart(2, "0")}
+            </button>
+          </div>
 
           <div className="flex min-w-0 items-center gap-1.5">
             <Favicon src={bookmark.favicon_url} host={host} />

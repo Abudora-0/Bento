@@ -40,6 +40,7 @@ export function Select({
   options,
   onChange,
   ariaLabel,
+  label,
   className = ""
 }: {
   id?: string
@@ -49,6 +50,14 @@ export function Select({
   options: SelectOption[]
   onChange?: (value: string) => void
   ariaLabel?: string
+  /**
+   * Overrides the button text with something fixed.
+   *
+   * For a picker that performs an action rather than holding a value, where
+   * showing the current selection would read as a state the rows are already
+   * in rather than as the thing pressing it will do.
+   */
+  label?: string
   className?: string
 }) {
   const generatedId = useId()
@@ -179,7 +188,7 @@ export function Select({
         onClick={() => (open ? setOpen(false) : openAt(options.findIndex((o) => o.value === value)))}
         onKeyDown={onKeyDown}
       >
-        <span className="truncate">{selected?.label ?? ""}</span>
+        <span className="truncate">{label ?? selected?.label ?? ""}</span>
         <span className="select-chevron" aria-hidden />
       </button>
 

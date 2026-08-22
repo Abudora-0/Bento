@@ -121,6 +121,46 @@ export async function deleteBookmark(id: string): Promise<ActionResult> {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Marking up several frames at once                                           */
+/* -------------------------------------------------------------------------- */
+
+export type BulkAction =
+  | { kind: "star"; starred: boolean }
+  | { kind: "file"; folderId: string | null }
+  | { kind: "delete" }
+
+/**
+ * Star, file or delete a selection in one go.
+ *
+ * The ids come from the browser, so they are only a request. Every statement
+ * underneath carries `and user_id = ?`, which means sending somebody else's id
+ * simply matches nothing rather than touching their row, and the count that
+ * comes back is of rows that were actually yours.
+ */
+export async function bulkUpdate(ids: string[], action: BulkAction): Promise<ActionResult> {
+  try {
+    const user = await requireUser()
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Nothing selected." }
+
+    if (action.kind === "delete") {
+      const orphaned = await bookmarks.bulkDelete(user.id, ids)
+      // Sequential rather than parallel: a burst of deletes against blob
+      // storage is not worth the risk of being rate limited mid way through.
+      for (const url of orphaned) await deleteScreenshot(url)
+    } else if (action.kind === "star") {
+      await bookmarks.bulkSetStarred(user.id, ids, action.starred)
+    } else {
+      await bookmarks.bulkSetFolder(user.id, ids, action.folderId)
+    }
+
+    refresh()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Folders                                                                     */
 /* -------------------------------------------------------------------------- */
 

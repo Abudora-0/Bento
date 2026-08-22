@@ -291,6 +291,79 @@ export async function deleteBookmark(userId: string, id: string): Promise<string
   return nullableText((rows[0] as Row).screenshot_url)
 }
 
+/* -------------------------------------------------------------------------- */
+/* Marking up several frames at once                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A placeholder list for an `in (...)` clause.
+ *
+ * Built from the count rather than by interpolating the ids, so the ids stay
+ * bound parameters. The whole reason the rest of this file is safe is that no
+ * caller supplied value is ever concatenated into sql, and a bulk operation is
+ * exactly where that discipline is easiest to drop.
+ */
+function placeholders(n: number): string {
+  return Array.from({ length: n }, () => "?").join(", ")
+}
+
+/** Caps a bulk request, so one call cannot ask for an unbounded statement. */
+const BULK_LIMIT = 200
+
+function bulkIds(ids: string[]): string[] {
+  return [...new Set(ids.filter((id) => typeof id === "string" && id.length > 0))].slice(0, BULK_LIMIT)
+}
+
+export async function bulkSetStarred(userId: string, ids: string[], starred: boolean): Promise<number> {
+  const list = bulkIds(ids)
+  if (list.length === 0) return 0
+
+  const result = await db().execute({
+    sql: `update bookmarks set starred = ?, updated_at = ? where user_id = ? and id in (${placeholders(list.length)})`,
+    args: [starred ? 1 : 0, now(), userId, ...list]
+  })
+
+  return result.rowsAffected
+}
+
+export async function bulkSetFolder(userId: string, ids: string[], folderId: string | null): Promise<number> {
+  const list = bulkIds(ids)
+  if (list.length === 0) return 0
+
+  const result = await db().execute({
+    sql: `update bookmarks set folder_id = ?, updated_at = ? where user_id = ? and id in (${placeholders(list.length)})`,
+    args: [folderId, now(), userId, ...list]
+  })
+
+  return result.rowsAffected
+}
+
+/**
+ * Deletes several, and reports the screenshots that now have no row pointing at
+ * them so the caller can clear them out of blob storage.
+ *
+ * Same split as deleteBookmark: this layer never touches storage, it only says
+ * what became orphaned.
+ */
+export async function bulkDelete(userId: string, ids: string[]): Promise<string[]> {
+  const list = bulkIds(ids)
+  if (list.length === 0) return []
+
+  const { rows } = await db().execute({
+    sql: `select screenshot_url from bookmarks where user_id = ? and id in (${placeholders(list.length)})`,
+    args: [userId, ...list]
+  })
+
+  await db().execute({
+    sql: `delete from bookmarks where user_id = ? and id in (${placeholders(list.length)})`,
+    args: [userId, ...list]
+  })
+
+  return rows
+    .map((row) => nullableText((row as Row).screenshot_url))
+    .filter((url): url is string => url !== null)
+}
+
 export async function countBookmarks(userId: string): Promise<number> {
   const { rows } = await db().execute({
     sql: "select count(*) as n from bookmarks where user_id = ?",

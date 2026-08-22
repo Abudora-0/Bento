@@ -5,8 +5,18 @@ import { makeUser, setUpTestDatabase } from "~/lib/test-support"
 
 await setUpTestDatabase()
 
-const { loadTray, upsertByUrl, setStarred, deleteBookmark, countBookmarks, getBookmark, editBookmark } =
-  await import("./bookmarks.ts")
+const {
+  loadTray,
+  upsertByUrl,
+  setStarred,
+  deleteBookmark,
+  countBookmarks,
+  getBookmark,
+  editBookmark,
+  bulkSetStarred,
+  bulkSetFolder,
+  bulkDelete
+} = await import("./bookmarks.ts")
 const { createFolder, listFolders, renameFolder, deleteFolder } = await import("./folders.ts")
 
 const alice = await makeUser("alice@example.com")
@@ -109,6 +119,76 @@ describe("one account cannot reach another's rows", () => {
 /* -------------------------------------------------------------------------- */
 /* Merge and screenshot rules                                                  */
 /* -------------------------------------------------------------------------- */
+
+describe("marking up several frames at once", () => {
+  it("stars only the ids that belong to the caller", async () => {
+    const mine = await upsertByUrl(alice.id, { ...base, url: "https://bulk.example.com/a" })
+    const theirs = await upsertByUrl(bob.id, { ...base, url: "https://bulk.example.com/b" })
+
+    // Alice asks for both, including one that is not hers.
+    const touched = await bulkSetStarred(alice.id, [mine.bookmark.id, theirs.bookmark.id], true)
+
+    assert.equal(touched, 1, "only Alice's row should have been counted")
+    assert.equal((await getBookmark(alice.id, mine.bookmark.id))?.starred, true)
+    assert.equal((await getBookmark(bob.id, theirs.bookmark.id))?.starred, false, "Bob's row must be untouched")
+  })
+
+  it("files only the caller's rows, and never into another account's folder", async () => {
+    const folder = await createFolder(alice.id, "Bulk target")
+    assert.ok(folder.ok)
+    if (!folder.ok) return
+
+    const mine = await upsertByUrl(alice.id, { ...base, url: "https://bulk.example.com/c" })
+    const theirs = await upsertByUrl(bob.id, { ...base, url: "https://bulk.example.com/d" })
+
+    const touched = await bulkSetFolder(alice.id, [mine.bookmark.id, theirs.bookmark.id], folder.folder.id)
+
+    assert.equal(touched, 1)
+    assert.equal((await getBookmark(alice.id, mine.bookmark.id))?.folder_id, folder.folder.id)
+    assert.equal((await getBookmark(bob.id, theirs.bookmark.id))?.folder_id, null)
+  })
+
+  it("deletes only the caller's rows, and reports only their screenshots", async () => {
+    const mine = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://bulk.example.com/e",
+      screenshotUrl: "https://blob.example.com/alice.jpg"
+    })
+    const theirs = await upsertByUrl(bob.id, {
+      ...base,
+      url: "https://bulk.example.com/f",
+      screenshotUrl: "https://blob.example.com/bob.jpg"
+    })
+
+    const orphaned = await bulkDelete(alice.id, [mine.bookmark.id, theirs.bookmark.id])
+
+    assert.deepEqual(orphaned, ["https://blob.example.com/alice.jpg"])
+    assert.equal(await getBookmark(alice.id, mine.bookmark.id), null)
+    assert.ok(await getBookmark(bob.id, theirs.bookmark.id), "Bob's row must survive")
+  })
+
+  it("does nothing at all for an empty list", async () => {
+    assert.equal(await bulkSetStarred(alice.id, [], true), 0)
+    assert.equal(await bulkSetFolder(alice.id, [], null), 0)
+    assert.deepEqual(await bulkDelete(alice.id, []), [])
+  })
+
+  it("ignores duplicates rather than counting them twice", async () => {
+    const one = await upsertByUrl(alice.id, { ...base, url: "https://bulk.example.com/g" })
+    assert.equal(await bulkSetStarred(alice.id, [one.bookmark.id, one.bookmark.id, one.bookmark.id], true), 1)
+  })
+
+  it("caps how many ids one call can carry", async () => {
+    // A guard on statement size, not on correctness. Sending three hundred ids
+    // should not build a three hundred placeholder statement.
+    const many = Array.from({ length: 300 }, (_, i) => `id-${i}`)
+    assert.equal(await bulkSetStarred(alice.id, many, true), 0)
+  })
+
+  it("survives ids that are empty or the wrong shape", async () => {
+    assert.equal(await bulkSetStarred(alice.id, ["", "   "], true), 0)
+  })
+})
 
 describe("upsertByUrl, screenshot replacement", () => {
   it("reports the screenshot it replaced, so the caller can delete it", async () => {

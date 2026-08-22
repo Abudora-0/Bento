@@ -1,18 +1,17 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
+import { cache } from "react"
 
-import { BookmarkCell } from "~/components/BookmarkCell"
 import { FolderRail } from "~/components/FolderRail"
 import { Pagination } from "~/components/Pagination"
+import { Sheet } from "~/components/Sheet"
 import { TrayToolbar } from "~/components/TrayToolbar"
-import { TRAY_GRID, compartment } from "~/lib/bento-layout"
-import { requireUser } from "~/lib/current-user"
+import { currentUser, requireUser } from "~/lib/current-user"
 import { loadTray } from "~/lib/db/bookmarks"
 import { PAGE_SIZE, pageOffset, parsePage, totalPages } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
-import { parseSort, sortOption } from "~/lib/sort"
+import { parseSort, sortOption, type SortKey } from "~/lib/sort"
 
-export const metadata: Metadata = { title: "The sheet" }
 export const dynamic = "force-dynamic"
 
 type SearchParams = Promise<{
@@ -24,29 +23,114 @@ type SearchParams = Promise<{
   page?: string
 }>
 
-export default async function TrayPage({ searchParams }: { searchParams: SearchParams }) {
-  const params = await searchParams
-  const user = await requireUser()
+type Params = Awaited<SearchParams>
 
+/** One place that turns the url into the arguments loadTray wants. */
+function readParams(params: Params) {
   const q = (params.q ?? "").trim().slice(0, 120)
   const tag = (params.tag ?? "").trim().slice(0, 32)
   const folder = (params.folder ?? "").trim()
   const starredOnly = params.star === "1"
   const sort = parseSort(params.sort)
-  const order = sortOption(sort)
   const page = parsePage(params.page)
-  const from = pageOffset(page)
 
-  const { rows, total, folders: allFolders, allTags } = await loadTray(user.id, {
-    q: q || undefined,
-    tag: tag || undefined,
-    folder: folder || undefined,
-    starredOnly,
-    sortColumn: order.column,
-    ascending: order.ascending,
-    limit: PAGE_SIZE,
-    offset: from
-  })
+  return { q, tag, folder, starredOnly, sort, page, from: pageOffset(page) }
+}
+
+/**
+ * The tray read, memoised for the length of one request.
+ *
+ * generateMetadata and the page component both need it, and Next runs them as
+ * two separate calls. Without React's cache that would be two trips to the
+ * database for the same rows, which on a network SQLite is the one cost this
+ * whole app is built around avoiding: loadTray exists specifically to collapse
+ * four reads into one round trip, and an uncached second call would hand that
+ * saving straight back.
+ */
+const readTray = cache(
+  async (
+    userId: string,
+    q: string,
+    tag: string,
+    folder: string,
+    starredOnly: boolean,
+    sort: SortKey,
+    from: number
+  ) => {
+    const order = sortOption(sort)
+
+    return loadTray(userId, {
+      q: q || undefined,
+      tag: tag || undefined,
+      folder: folder || undefined,
+      starredOnly,
+      sortColumn: order.column,
+      ascending: order.ascending,
+      limit: PAGE_SIZE,
+      offset: from
+    })
+  }
+)
+
+/**
+ * Spread into readTray, so both callers pass identical primitives.
+ *
+ * React's cache compares arguments by reference. searchParams is awaited
+ * separately in generateMetadata and in the component, so those are two
+ * different objects and passing one straight through would miss the cache on
+ * every single request while looking exactly like it was working.
+ */
+function trayArgs(params: Params): [string, string, string, boolean, SortKey, number] {
+  const { q, tag, folder, starredOnly, sort, from } = readParams(params)
+  return [q, tag, folder, starredOnly, sort, from]
+}
+
+/**
+ * The tab title says what you are looking at.
+ *
+ * With several sheets open, "The sheet" on all of them is useless. A count and
+ * the active filter make each tab findable without switching to it.
+ */
+export async function generateMetadata({ searchParams }: { searchParams: SearchParams }): Promise<Metadata> {
+  const params = await searchParams
+  const user = await currentUser()
+  if (!user) return { title: "The sheet" }
+
+  const { q, tag, folder, starredOnly, page } = readParams(params)
+
+  let total: number
+  let folders: { id: string; name: string }[]
+  try {
+    const tray = await readTray(user.id, ...trayArgs(params))
+    total = tray.total
+    folders = tray.folders
+  } catch {
+    // A title is not worth failing a page render over.
+    return { title: "The sheet" }
+  }
+
+  const what = `${total} ${total === 1 ? "frame" : "frames"}`
+
+  let scope = ""
+  if (q) scope = `"${q}"`
+  else if (tag) scope = `#${tag}`
+  else if (starredOnly) scope = "Marked"
+  else if (folder === "none") scope = "Unfiled"
+  else if (folder) scope = folders.find((f) => f.id === folder)?.name ?? "Folder"
+
+  const suffix = page > 1 ? `, page ${page}` : ""
+
+  return { title: scope ? `${scope}, ${what}${suffix}` : `${what}${suffix}` }
+}
+
+export default async function TrayPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams
+  const user = await requireUser()
+
+  const { q, tag, folder, starredOnly, sort, page, from } = readParams(params)
+
+  // Memoised, so generateMetadata's call above and this one are one round trip.
+  const { rows, total, folders: allFolders, allTags } = await readTray(user.id, ...trayArgs(params))
 
   const lastPage = totalPages(total)
 
@@ -95,25 +179,9 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           {rows.length === 0 ? (
             <EmptySheet filtering={filtering} />
           ) : (
-            // Keyed by page so the whole grid re-runs its advance animation
-            // when you turn to the next one, like film moving on.
-            <div key={page} className={`animate-advance ${TRAY_GRID}`}>
-              {rows.map((bookmark, index) => {
-                const shape = compartment(index)
-                return (
-                  <BookmarkCell
-                    key={bookmark.id}
-                    bookmark={bookmark}
-                    folders={allFolders}
-                    className={shape.className}
-                    tall={shape.tall}
-                    wide={shape.wide}
-                    frame={from + index + 1}
-                    index={index}
-                  />
-                )
-              })}
-            </div>
+            // Sheet owns the cursor, the selection and the loupe, and keys
+            // the grid by page so the advance animation re-runs on each turn.
+            <Sheet rows={rows} folders={allFolders} from={from} page={page} />
           )}
         </section>
 

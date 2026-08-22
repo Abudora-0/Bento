@@ -12,7 +12,7 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-4ff8d2.svg?logo=turso&logoColor=black)](https://turso.tech)
 [![Plasmo MV3](https://img.shields.io/badge/Plasmo-MV3-cc352c.svg)](https://www.plasmo.com)
-[![Tests](https://img.shields.io/badge/tests-195%20passing-78965a.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-202%20passing-78965a.svg)](#testing)
 
 </div>
 
@@ -49,6 +49,10 @@ If you would rather run your own, the whole thing is below and takes about five 
 - **Search** across titles, addresses and notes, with `/` to focus from anywhere
 - **Tags, folders and starring**, all filterable, all shareable as a URL
 - **Add by hand** for pages the extension cannot reach, with a server side favicon lookup
+- **A loupe**, because that is what you do with a contact sheet: press space to blow a frame up, arrows to walk the roll
+- **Command palette** on Ctrl or Cmd K, to jump to a folder, a tag, or an action
+- **Keyboard marking**, arrows to move across the sheet, `x` to select, `s` to star, Enter to open
+- **Bulk actions**, select several frames and mark, file or delete them together
 - **Merge on re-capture**, so saving the same page twice unions its tags instead of duplicating it
 
 ## Design
@@ -179,7 +183,7 @@ cd website
 npm test
 ```
 
-195 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
+202 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
 
 The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
 

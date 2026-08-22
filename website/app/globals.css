@@ -206,6 +206,23 @@
   }
 
   /* An empty well. Unexposed stock. */
+  /* The keyboard cursor. A rung above live so it still reads when the pointer
+     happens to be hovering the same frame. */
+  .frame[data-cursored] {
+    box-shadow: inset 0 0 0 1px var(--line-focus);
+  }
+
+  /* Picked for a bulk action. Grease, because this is the marking up colour. */
+  .frame[data-selected] {
+    box-shadow: inset 0 0 0 1px var(--color-grease);
+  }
+
+  .frame[data-selected][data-cursored] {
+    box-shadow:
+      inset 0 0 0 1px var(--color-grease),
+      inset 0 0 0 3px var(--line-hatch);
+  }
+
   .frame-blank {
     background: repeating-linear-gradient(
       45deg,
