@@ -12,7 +12,7 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-4ff8d2.svg?logo=turso&logoColor=black)](https://turso.tech)
 [![Plasmo MV3](https://img.shields.io/badge/Plasmo-MV3-cc352c.svg)](https://www.plasmo.com)
-[![Tests](https://img.shields.io/badge/tests-160%20passing-78965a.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-195%20passing-78965a.svg)](#testing)
 
 </div>
 
@@ -29,6 +29,7 @@ Sign up, and everything you save is yours. Bookmarks, folders and tags are scope
 ## Features
 
 - **Accounts**, so a handful of people can share one deployment and keep separate sheets
+- **Sign in with either** your username or your email, and reveal the password if you need to check it
 - **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
 - **A real lock**, not a password prompt: closes when the browser closes, after inactivity, or on demand
@@ -70,7 +71,11 @@ Every query is a network round trip now, so the tray page sends its four reads a
 
 Two surfaces, two completely separate ways in. That separation is deliberate: the lock can change without the extension noticing, and a leaked extension token cannot be used to sign in.
 
-**Passwords** are PBKDF2-HMAC-SHA256 at 210,000 iterations with a per user salt, stored as a self describing string so the cost can be raised later without locking out anyone who signed up before the change. PBKDF2 rather than argon2 because middleware runs on the Edge runtime, where Web Crypto is the only thing available and PBKDF2 is the only password function it offers. Verification compares over the full length without short circuiting. Signing in with an email nobody registered still runs a hash before answering, so the response time does not say which half of the guess was wrong.
+**Passwords** are PBKDF2-HMAC-SHA256 at 210,000 iterations with a per user salt, stored as a self describing string so the cost can be raised later without locking out anyone who signed up before the change. PBKDF2 rather than argon2 because middleware runs on the Edge runtime, where Web Crypto is the only thing available and PBKDF2 is the only password function it offers. Verification compares over the full length without short circuiting. Signing in with an account nobody registered still runs a hash before answering, so the response time does not say which half of the guess was wrong. Minimum ten characters, and a password that is simply your username or your email address is refused.
+
+**Guessing is rate limited**, counted in the database rather than in memory, because a serverless instance shares nothing with the next one and a module level counter would silently reset. Two limits apply at once: eight failures against one account in fifteen minutes, and twenty five from one address over the same window. The first stops a password list, the second stops one address spraying a single guess across many accounts. The check runs *before* the password is verified, so a refused attempt costs one indexed read rather than 200ms of PBKDF2, measured at 1ms against 140ms. Signing in successfully forgets that account's failures, and never the address's. New accounts are capped at five per address per hour.
+
+Sign in accepts an email or a username in the same field, and the limiter counts the **account** rather than the string that was typed. Counting the string would hand anyone who knows both of your names two separate allowances.
 
 **The site** mints an HMAC signed session cookie on a correct sign in, verified in middleware on every request. It is `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS, and by default carries no expiry, which makes it a session cookie: closing the browser drops it. The signed timestamp inside enforces the idle window, and every navigation slides that window forward. Ticking **Stay signed in** gives the cookie a lifetime, and the idle window still applies on top of it.
 
@@ -110,7 +115,7 @@ Fill in `.env.local`:
 | --- | --- |
 | `BENTO_SECRET` | The key session cookies are signed with. Not a password, nobody ever types it. `openssl rand -hex 32` |
 | `BENTO_LOCK_MINUTES` | Idle minutes before it locks itself. Defaults to 30 |
-| `BENTO_INVITE_CODE` | Optional. Set it and the signup form asks for it |
+| `BENTO_INVITE_CODE` | Optional. Set it and the signup form asks for it, compared in constant time |
 | `TURSO_DATABASE_URL` | From step 1 |
 | `TURSO_AUTH_TOKEN` | From step 1 |
 
@@ -128,7 +133,7 @@ Then:
 npm run dev
 ```
 
-It runs at http://localhost:3000. The first thing it shows is the lock screen, which has a **Create one** link. Make an account and you land on your sheet.
+It runs at http://localhost:3000. The first thing it shows is the lock screen, which has a **Create an account** button. Pick a username, and you land on your sheet.
 
 ### 3. The extension
 
@@ -162,7 +167,7 @@ cd website
 npm test
 ```
 
-160 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
+195 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
 
 The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
 

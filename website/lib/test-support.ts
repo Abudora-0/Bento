@@ -37,22 +37,30 @@ export async function setUpTestDatabase(): Promise<void> {
   await db().execute("PRAGMA foreign_keys = ON")
 }
 
-export type TestUser = { id: string; email: string; api_token: string }
+export type TestUser = { id: string; email: string; username: string; api_token: string }
 
 /**
  * Creates a user directly, skipping the signup form.
  *
- * The password is short on purpose to keep PBKDF2 cheap across a whole suite,
- * and it goes in through createUser so the stored hash is a real one rather
- * than something the tests invented.
+ * It goes in through createUser so the stored hash is a real one rather than
+ * something the tests invented. The username defaults to the email's local
+ * part with anything the charset disallows stripped out, so a caller that does
+ * not care about names can pass one argument and get a valid account.
  */
-export async function makeUser(email: string): Promise<TestUser> {
+export async function makeUser(email: string, username?: string): Promise<TestUser> {
   const { createUser } = await import("./db/users.ts")
 
-  const result = await createUser(email, "test-password-long-enough")
+  const name = username ?? email.split("@")[0].replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 24)
+
+  const result = await createUser(email, name, "test-password-long-enough")
   if (!result.ok) throw new Error(`could not create ${email}: ${result.error}`)
 
-  return { id: result.user.id, email: result.user.email, api_token: result.user.api_token }
+  return {
+    id: result.user.id,
+    email: result.user.email,
+    username: result.user.username,
+    api_token: result.user.api_token
+  }
 }
 
 /** A request carrying a specific user's extension token. */

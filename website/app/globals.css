@@ -334,6 +334,100 @@
     line-height: 1.45;
   }
 
+  /*
+     A field that has something sitting inside it on the right, the reveal
+     toggle being the only user so far. The padding is reserved on the input
+     rather than on a wrapper, so the caret never runs under the button.
+     ------------------------------------------------------------------------ */
+  .field-with-action {
+    padding-right: 52px;
+  }
+
+  .field-shell {
+    position: relative;
+  }
+
+  /* The reveal toggle. Wide tracked and tiny, the same voice as .label, so it
+     reads as part of the field's furniture rather than a second button. */
+  .field-action {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    padding: 0 10px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-silver-dim);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color 160ms ease;
+  }
+
+  .field-action:hover {
+    color: var(--color-print);
+  }
+
+  /* Shown, so the field is no longer hiding anything. Grease red is the one
+     accent, and this is exactly the kind of state it exists to mark. */
+  .field-action[aria-pressed="true"] {
+    color: var(--color-grease);
+  }
+
+  /*
+     The checkbox.
+     ------------------------------------------------------------------------
+     Native checkboxes are rounded, and accent-color only tints the fill, so a
+     tinted native box still lands a radius in the middle of a design that has
+     none anywhere else. Drawn from scratch instead: a hard square on the same
+     hairline ladder as .field, and a tick made from two borders of a rotated
+     box rather than an image or a font.
+     ------------------------------------------------------------------------ */
+  .check {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    background: var(--color-gutter);
+    border: 0;
+    box-shadow: inset 0 0 0 1px var(--line-field);
+    cursor: pointer;
+    transition:
+      box-shadow 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .check:hover {
+    box-shadow: inset 0 0 0 1px var(--line-focus);
+  }
+
+  .check:checked {
+    background: var(--color-grease);
+    box-shadow: inset 0 0 0 1px var(--color-grease);
+  }
+
+  .check:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--color-print);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(43deg);
+  }
+
+  .check:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   /* The shutter release. The primary action, everywhere. */
   .shutter {
     font-family: var(--font-head);

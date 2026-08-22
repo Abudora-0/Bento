@@ -1,15 +1,27 @@
 "use server"
 
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { createUser, verifyLogin } from "~/lib/db/users"
+import { createUser, findLoginCandidate, verifyCandidate } from "~/lib/db/users"
+import {
+  addressFrom,
+  checkSignIn,
+  checkSignUp,
+  clearSignInFailures,
+  describeWait,
+  recordAttempt,
+  signInBuckets,
+  signUpBuckets
+} from "~/lib/rate-limit"
 import { SESSION_COOKIE, issueSession, sessionCookieOptions } from "~/lib/session"
 
 export type AuthResult = { ok: true } | { ok: false; error: string }
 
 /** Roughly a quarter second, enough to blunt a script hammering the form. */
 const REJECT_DELAY_MS = 250
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * Whether to mark the session cookie Secure.
@@ -38,31 +50,72 @@ function wantsRemembering(formData: FormData): boolean {
   return formData.get("remember") === "on"
 }
 
+async function callerAddress(): Promise<string> {
+  return addressFrom(await headers())
+}
+
 /**
  * Signing in.
  *
- * The error never says whether it was the email or the password that was
- * wrong. Saying "no account with that email" would turn the form into a way to
- * find out who has an account here.
+ * The identifier field takes an email or a username, and the error never says
+ * which of the two was wrong, or whether the account exists at all. Saying "no
+ * account with that email" would turn the form into a way to find out who has
+ * an account here.
  */
 export async function signIn(formData: FormData): Promise<AuthResult> {
-  const email = String(formData.get("email") ?? "")
+  const identifier = String(formData.get("identifier") ?? "").trim()
   const password = String(formData.get("password") ?? "")
 
-  if (!email || !password) return { ok: false, error: "Fill in both fields." }
+  if (!identifier || !password) return { ok: false, error: "Fill in both fields." }
+
+  const address = await callerAddress()
+
+  let candidate
+  let limit
+  try {
+    /*
+     * Who is being guessed at, resolved before anything is counted. Bucketing
+     * on the raw string would hand the same account two allowances, one under
+     * its email and one under its username. A miss that resolves to nobody
+     * falls back to the string, which is all there is.
+     */
+    candidate = await findLoginCandidate(identifier)
+
+    /*
+     * Checked before the password is verified, not after. A locked out attempt
+     * has to be cheap, or the limiter becomes a way to make the server burn
+     * 200ms of PBKDF2 on every request it was supposed to be refusing.
+     */
+    limit = await checkSignIn(candidate?.user.id ?? identifier, address)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `Too many attempts. Try again ${describeWait(limit.retryAfterMs)}.`
+    }
+  }
+
+  const accountKey = candidate?.user.id ?? identifier
 
   let user
   try {
-    user = await verifyLogin(email, password)
+    user = await verifyCandidate(candidate, password)
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
   }
 
   if (!user) {
-    await new Promise((resolve) => setTimeout(resolve, REJECT_DELAY_MS))
-    return { ok: false, error: "That email and password do not match." }
+    await Promise.all([recordAttempt(signInBuckets(accountKey, address)), pause(REJECT_DELAY_MS)])
+    return { ok: false, error: "That does not match an account." }
   }
 
+  // A correct password forgets this account's failures, so a person who
+  // fumbled a few times is not still counting down afterwards. The address
+  // bucket is deliberately left alone, see lib/rate-limit.ts.
+  await clearSignInFailures(accountKey)
   await startSession(user.id, wantsRemembering(formData))
   return { ok: true }
 }
@@ -76,31 +129,70 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
  */
 export async function signUp(formData: FormData): Promise<AuthResult> {
   const email = String(formData.get("email") ?? "")
+  const username = String(formData.get("username") ?? "")
   const password = String(formData.get("password") ?? "")
   const confirm = String(formData.get("confirm") ?? "")
 
   if (password !== confirm) return { ok: false, error: "Those passwords do not match." }
 
+  const address = await callerAddress()
+
+  let limit
+  try {
+    limit = await checkSignUp(address)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `That is a lot of new accounts from one place. Try again ${describeWait(limit.retryAfterMs)}.`
+    }
+  }
+
   const required = process.env.BENTO_INVITE_CODE
   if (required) {
     const given = String(formData.get("invite") ?? "")
-    if (given !== required) {
-      await new Promise((resolve) => setTimeout(resolve, REJECT_DELAY_MS))
+    if (!sameCode(given, required)) {
+      await Promise.all([recordAttempt(signUpBuckets(address)), pause(REJECT_DELAY_MS)])
       return { ok: false, error: "That invite code is not right." }
     }
   }
 
   let result
   try {
-    result = await createUser(email, password)
+    result = await createUser(email, username, password)
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
   }
 
   if (!result.ok) return result
 
+  // Counted on success too, so the limit is on accounts created rather than on
+  // failures, which is the thing worth capping here.
+  await recordAttempt(signUpBuckets(address))
   await startSession(result.user.id, wantsRemembering(formData))
   return { ok: true }
+}
+
+/**
+ * Constant time comparison for the invite code.
+ *
+ * A low value secret, but comparing it with === leaks its length and its
+ * matching prefix through timing, and there is no reason to write the leaky
+ * version when the careful one is four lines.
+ */
+function sameCode(given: string, expected: string): boolean {
+  const a = new TextEncoder().encode(given)
+  const b = new TextEncoder().encode(expected)
+
+  let diff = a.length ^ b.length
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
+  }
+
+  return diff === 0
 }
 
 /** Whether the signup form should ask for an invite code. */

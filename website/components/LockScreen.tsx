@@ -38,10 +38,12 @@ export function LockScreen({
   const [phase, setPhase] = useState<Phase>("closed")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  const emailRef = useRef<HTMLInputElement>(null)
+  // One reveal state for the whole form, see the confirm field below.
+  const [shown, setShown] = useState(false)
+  const firstFieldRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    emailRef.current?.focus()
+    firstFieldRef.current?.focus()
   }, [mode])
 
   /*
@@ -133,34 +135,76 @@ export function LockScreen({
               onSubmit={onSubmit}
               className={`mt-6 space-y-3 ${phase === "rejected" ? "animate-reject" : ""}`}
             >
-              <div>
-                <label htmlFor="lock-email" className="label">
-                  Email
-                </label>
-                <input
-                  ref={emailRef}
-                  id="lock-email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  spellCheck={false}
-                  className="field mt-2"
-                />
-              </div>
+              {signingUp ? (
+                <>
+                  <div>
+                    <label htmlFor="lock-username" className="label">
+                      Username
+                    </label>
+                    <input
+                      ref={firstFieldRef}
+                      id="lock-username"
+                      name="username"
+                      required
+                      minLength={3}
+                      maxLength={24}
+                      pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]*"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      className="field mt-2"
+                    />
+                    <p className="mt-1.5 text-[10px] text-silver-dim">
+                      3 to 24 characters. Letters, numbers, and . _ - only.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="lock-email" className="label">
+                      Email
+                    </label>
+                    <input
+                      id="lock-email"
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      className="field mt-2"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label htmlFor="lock-identifier" className="label">
+                    Email or username
+                  </label>
+                  <input
+                    ref={firstFieldRef}
+                    id="lock-identifier"
+                    name="identifier"
+                    required
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className="field mt-2"
+                  />
+                </div>
+              )}
 
               <div>
                 <label htmlFor="lock-password" className="label">
                   Password
                 </label>
-                <input
+                <RevealField
                   id="lock-password"
                   name="password"
-                  type="password"
                   required
                   minLength={signingUp ? 10 : undefined}
                   autoComplete={signingUp ? "new-password" : "current-password"}
-                  className="field mt-2"
+                  shown={shown}
+                  onToggle={() => setShown((was) => !was)}
                 />
                 {signingUp ? (
                   <p className="mt-1.5 text-[10px] text-silver-dim">At least 10 characters.</p>
@@ -172,13 +216,16 @@ export function LockScreen({
                   <label htmlFor="lock-confirm" className="label">
                     Again
                   </label>
-                  <input
+                  {/* No separate toggle. One control governs both, so they can
+                      never end up in different states and have you comparing a
+                      visible password against a row of dots. */}
+                  <RevealField
                     id="lock-confirm"
                     name="confirm"
-                    type="password"
                     required
                     autoComplete="new-password"
-                    className="field mt-2"
+                    shown={shown}
+                    onToggle={() => setShown((was) => !was)}
                   />
                 </div>
               ) : null}
@@ -193,11 +240,7 @@ export function LockScreen({
               ) : null}
 
               <label className="flex cursor-pointer items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  name="remember"
-                  className="h-3.5 w-3.5 shrink-0 accent-[var(--color-grease)]"
-                />
+                <input type="checkbox" name="remember" className="check" />
                 <span className="text-[10px] uppercase tracking-[0.14em] text-silver-dim">
                   Stay signed in
                 </span>
@@ -219,6 +262,10 @@ export function LockScreen({
                 onClick={() => {
                   setMode(signingUp ? "in" : "up")
                   setError(null)
+                  // Never carry a revealed password across the switch. The
+                  // fields are being replaced anyway, and leaving it on would
+                  // mean the next form starts with its password in the clear.
+                  setShown(false)
                 }}
               >
                 {signingUp ? "I already have an account" : "Create an account"}
@@ -236,6 +283,58 @@ export function LockScreen({
         </LidHalf>
       </div>
     </main>
+  )
+}
+
+/**
+ * A password field with a reveal toggle.
+ *
+ * The toggle is a real button, so it is reachable by keyboard and announces
+ * its state, and it is type="button" so pressing it never submits the form.
+ * It flips the input's type rather than rendering the value anywhere, which
+ * keeps the browser's own password handling intact.
+ */
+function RevealField({
+  id,
+  name,
+  required,
+  minLength,
+  autoComplete,
+  shown,
+  onToggle
+}: {
+  id: string
+  name: string
+  required?: boolean
+  minLength?: number
+  autoComplete: string
+  shown: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="field-shell mt-2">
+      <input
+        id={id}
+        name={name}
+        type={shown ? "text" : "password"}
+        required={required}
+        minLength={minLength}
+        autoComplete={autoComplete}
+        autoCapitalize="none"
+        spellCheck={false}
+        className="field field-with-action"
+      />
+      <button
+        type="button"
+        className="field-action"
+        onClick={onToggle}
+        aria-pressed={shown}
+        aria-controls={id}
+        title={shown ? "Hide the password" : "Show the password"}
+      >
+        {shown ? "Hide" : "Show"}
+      </button>
+    </div>
   )
 }
 

@@ -23,10 +23,12 @@ export default async function SettingsPage() {
           <span className="frame-stamp">since {isoDate(user.created_at)}</span>
         </div>
 
-        <h2 className="head-2 mt-3">{user.email}</h2>
+        <h2 className="head-2 mt-3 break-all">{user.username}</h2>
+        <p className="mt-1 break-all text-[11px] text-silver">{user.email}</p>
 
-        <p className="mt-2 text-[11px] leading-relaxed text-silver-dim">
-          Your sheet is yours alone. Nobody else signed in here can see it, and you cannot see theirs.
+        <p className="mt-3 text-[11px] leading-relaxed text-silver-dim">
+          Either one signs you in, along with your password. Your sheet is yours alone: nobody else
+          signed in here can see it, and you cannot see theirs.
         </p>
       </div>
 

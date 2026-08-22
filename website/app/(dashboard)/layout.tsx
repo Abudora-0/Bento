@@ -23,8 +23,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         <div className="flex items-center gap-3">
           <ExposureCount count={await countBookmarks(user.id)} />
-          <Link href="/settings" className="ghost" title={user.email}>
-            Settings
+          <Link
+            href="/settings"
+            className="ghost max-w-[9rem] truncate"
+            title={`Signed in as ${user.username}`}
+          >
+            {user.username}
           </Link>
           <LockButton />
         </div>
