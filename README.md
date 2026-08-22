@@ -26,6 +26,18 @@ Sign up, and everything you save is yours. Bookmarks, folders and tags are scope
 
 > **Screenshots.** Drop images into `docs/` and reference them here. There is no automated capture in the repo, so this section is deliberately left for you to fill in with the real thing rather than a mockup.
 
+## Try it
+
+There is a live deployment at **[bentto.vercel.app](https://bentto.vercel.app)**. Signup asks for an invite code, which is:
+
+```
+f1c0485e0e3a
+```
+
+The code is here rather than hidden because the point of it is not secrecy. It keeps automated signups and drive-by traffic out of a database and a blob store that both sit on free tiers, while leaving the app open to anyone who actually wanted to look at it. Make an account, add a bookmark by hand, and the sheet is yours.
+
+If you would rather run your own, the whole thing is below and takes about five minutes.
+
 ## Features
 
 - **Accounts**, so a handful of people can share one deployment and keep separate sheets
@@ -115,7 +127,7 @@ Fill in `.env.local`:
 | --- | --- |
 | `BENTO_SECRET` | The key session cookies are signed with. Not a password, nobody ever types it. `openssl rand -hex 32` |
 | `BENTO_LOCK_MINUTES` | Idle minutes before it locks itself. Defaults to 30 |
-| `BENTO_INVITE_CODE` | Optional. Set it and the signup form asks for it, compared in constant time |
+| `BENTO_INVITE_CODE` | Optional. Set it and the signup form asks for it, compared in constant time. Leave it unset and signup is open |
 | `TURSO_DATABASE_URL` | From step 1 |
 | `TURSO_AUTH_TOKEN` | From step 1 |
 
