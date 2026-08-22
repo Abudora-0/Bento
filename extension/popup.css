@@ -66,8 +66,22 @@ body {
 
 .leader-mark {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+}
+
+.leader-logo {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+/* The name, drawn rather than set. Same outlines as the website, so no font
+   file has to be shipped into the bundle for it. */
+.leader-letters {
+  height: 15px;
+  width: auto;
+  display: block;
 }
 
 .leader-name {

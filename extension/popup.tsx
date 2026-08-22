@@ -52,12 +52,68 @@ export default function Popup() {
 /* Leader                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The mark and the wordmark, the same drawing the website uses.
+ *
+ * Copied rather than imported: the two surfaces are separate npm projects with
+ * no shared build step, which is the same reason lib/types.ts is a hand kept
+ * mirror. If you change one, change the other, and change
+ * website/public/icon.svg and scripts/make-icon.mjs with them.
+ */
+function Mark() {
+  return (
+    <svg viewBox="0 0 64 64" className="leader-logo" aria-hidden focusable="false">
+      <rect x="8" y="8" width="27" height="48" fill="var(--print-cream)" />
+      <rect x="39" y="8" width="17" height="19" fill="var(--silver-dim)" />
+      <rect x="39" y="31" width="17" height="25" fill="var(--print-cream)" />
+      <g transform="translate(21.5,32) scale(1.18) translate(-15,-15)">
+        <path
+          d="M20.8 5.9c4.4 1.6 6.4 6.7 4.6 11.1c-1.9 4.6-7.4 7.3-12.2 6.1C8.2 21.9 5 17.2 5.7 12.4C6.4 7.8 10.8 4.4 15.6 4.6c3.4.1 6.7 1.7 8.5 4.3c.5.8.9 1.6 1.1 2.5"
+          fill="none"
+          stroke="var(--grease)"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </g>
+    </svg>
+  )
+}
+
+function Letters() {
+  return (
+    <svg viewBox="0 0 118 23" className="leader-letters" aria-label="Bento" role="img">
+        <g transform="translate(0,0)">
+          <path d="M0 0h11.4c4.2 0 6.6 2.1 6.6 5.9c0 2.5-1.1 4.2-3.2 5.1c2.6.8 4 2.7 4 5.6c0 4.2-2.6 6.4-7.2 6.4H0V0zm5.6 4.3v4.6h4.5c1.6 0 2.5-.8 2.5-2.3c0-1.5-.9-2.3-2.5-2.3H5.6zm0 8.8v5.4h5c1.8 0 2.8-.9 2.8-2.7c0-1.8-1-2.7-2.8-2.7h-5z" fill="var(--print-cream)" />
+          <rect x="-1" y="10.2" width="23" height="1.6" fill="var(--gutter)" />
+        </g>
+        <g transform="translate(25,0)">
+          <path d="M0 0h16.6v4.5H5.6v4.3h9.9v4.4H5.6v5.3h11.3V23H0V0z" fill="var(--print-cream)" />
+          <rect x="-1" y="10.2" width="23" height="1.6" fill="var(--gutter)" />
+        </g>
+        <g transform="translate(49,0)">
+          <path d="M0 0h5.3l8.1 13.1V0h5.5v23h-5.3L5.5 9.9V23H0V0z" fill="var(--print-cream)" />
+          <rect x="-1" y="10.2" width="23" height="1.6" fill="var(--gutter)" />
+        </g>
+        <g transform="translate(75,0)">
+          <path d="M0 0h18.6v4.6h-6.5V23H6.5V4.6H0V0z" fill="var(--print-cream)" />
+          <rect x="-1" y="10.2" width="23" height="1.6" fill="var(--gutter)" />
+        </g>
+        <g transform="translate(97,0)">
+          <path d="M9.9 0C16 0 20 4.6 20 11.5C20 18.4 16 23 9.9 23C3.9 23 0 18.4 0 11.5C0 4.6 3.9 0 9.9 0zm0 4.7c-2.6 0-4.2 2.5-4.2 6.8c0 4.3 1.6 6.8 4.2 6.8c2.7 0 4.3-2.5 4.3-6.8c0-4.3-1.6-6.8-4.3-6.8z" fill="var(--print-cream)" />
+          <rect x="-1" y="10.2" width="23" height="1.6" fill="var(--gutter)" />
+        </g>
+    </svg>
+  )
+}
+
 function Leader() {
   return (
     <>
       <div className="leader">
         <div className="leader-mark">
-          <span className="leader-name">Bento</span>
+          <Mark />
+          <Letters />
           <span className="leader-roll">Roll 01</span>
         </div>
         <span className="leader-count">ISO 400</span>

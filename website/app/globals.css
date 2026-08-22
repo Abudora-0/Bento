@@ -278,6 +278,14 @@
   }
 
   /* The frame number, the only place red is used as text. */
+  /* Tabular figures everywhere a number changes in place. Proportional digits
+     make a counter jitter as it ticks, which is the sort of thing you notice
+     without being able to say why. */
+  .frame-no,
+  .frame-stamp {
+    font-variant-numeric: tabular-nums;
+  }
+
   .frame-no {
     font-family: var(--font-head);
     font-size: 11px;
@@ -543,6 +551,48 @@
   }
 
   /*
+     The wordmark: the mark, then BENTO drawn as outlines.
+     ------------------------------------------------------------------------ */
+  .wordmark-letters {
+    height: 100%;
+    width: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  /* Each letter comes up on its own beat, the way a print does in the tray.
+     Backwards fill so nothing flashes at full opacity before its turn. */
+  .wordmark-letters path {
+    animation: letter-up 520ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+  }
+
+  /* Hovering winds the sheet on: each compartment steps up a rung in turn. */
+  .wordmark:hover .mark-cells rect {
+    animation: cell-advance 620ms ease;
+  }
+
+  .wordmark:hover .mark-cells rect[data-cell="1"] {
+    animation-delay: 70ms;
+  }
+
+  .wordmark:hover .mark-cells rect[data-cell="2"] {
+    animation-delay: 140ms;
+  }
+
+  .wordmark:hover .mark-cells rect[data-cell="3"] {
+    animation-delay: 210ms;
+  }
+
+  /* The roll number steps up with them rather than staying dim. */
+  .wordmark span {
+    transition: color 200ms ease;
+  }
+
+  .wordmark:hover .text-silver-dim {
+    color: var(--color-silver);
+  }
+
+  /*
      The two segment switch, currently only sign in against new account.
      ------------------------------------------------------------------------
      A pair of buttons sharing one hairline box rather than two separate ones,
@@ -691,6 +741,28 @@
   .tag:hover {
     color: var(--color-print);
     background: var(--line-field);
+  }
+
+  /* The fill sweeps in from the left rather than switching on, so hovering a
+     tag looks like ink being drawn across it.
+
+     A background-size sweep rather than a transformed pseudo element. Both
+     work, but a pseudo element's transform cannot be read back through
+     getComputedStyle, so this is the version that can actually be verified
+     rather than assumed. */
+  .tag {
+    background-image: linear-gradient(var(--line-hatch), var(--line-hatch));
+    background-repeat: no-repeat;
+    background-position: left center;
+    background-size: 0% 100%;
+    transition:
+      background-size 220ms cubic-bezier(0.2, 0.7, 0.3, 1),
+      color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .tag:hover {
+    background-size: 100% 100%;
   }
 
   .tag-on {
@@ -856,6 +928,35 @@
   to {
     opacity: 0;
     transform: scaleX(1);
+  }
+}
+
+/* One letter of the wordmark coming up, matching develop-in's settle. */
+@keyframes letter-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: brightness(0.4) contrast(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: none;
+  }
+}
+
+/* A compartment of the mark advancing one rung and coming back. */
+@keyframes cell-advance {
+  0% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.45;
+    transform: translateX(1.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 

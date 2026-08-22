@@ -3,8 +3,13 @@
  *
  * Plasmo wants a single 512x512 PNG and derives the smaller sizes from it.
  * Rather than commit a binary blob nobody can diff, the mark is drawn here in
- * plain arithmetic: a darkroom black tile holding bento compartments, one of
- * them struck in grease pencil red so the two design languages meet.
+ * plain arithmetic. It is the same mark as website/components/Wordmark.tsx and
+ * website/public/icon.svg, in 512 space rather than 64: three compartments
+ * with a real size hierarchy, the largest struck in grease pencil.
+ *
+ * If you move one of the three, move all three. There is no shared source for
+ * this geometry, because a toolbar icon has to be a PNG and the site's is an
+ * inline svg.
  *
  * Run with: npm run icon
  */
@@ -20,12 +25,11 @@ const SIZE = 512
 const SS = 4 // supersample factor, gives clean edges without a graphics library
 const BIG = SIZE * SS
 
-// Shared palette. Darkroom ground, print cream, matcha, grease pencil red.
-const DARKROOM = [13, 13, 14]
+// The darkroom palette, matching website/app/globals.css.
+const GUTTER = [5, 5, 6]
 const CREAM = [233, 229, 220]
-const MATCHA = [109, 127, 74]
+const SILVER_DIM = [109, 110, 114]
 const GREASE = [204, 53, 44]
-const GOLD = [201, 162, 74]
 
 const canvas = new Uint8Array(BIG * BIG * 4) // transparent to start
 
@@ -86,20 +90,21 @@ function ring(cx, cy, radius, thickness, color, alpha = 1) {
 // The mark
 // ---------------------------------------------------------------------------
 
-// Darkroom tile with a thin gold rim just inside the edge.
-roundRect(0, 0, 512, 512, 112, DARKROOM)
-roundRect(26, 26, 460, 460, 92, GOLD, 0.42)
-roundRect(32, 32, 448, 448, 88, DARKROOM)
+/*
+ * The ground. Rounded, unlike everything else in this project, because a
+ * toolbar icon is chrome rather than page: every other icon on that row is a
+ * rounded tile, and a hard square there reads as a rendering fault rather than
+ * as a decision. The compartments inside it stay square.
+ */
+roundRect(0, 0, 512, 512, 112, GUTTER)
 
-// Compartments, the bento grid.
-roundRect(76, 76, 168, 200, 26, CREAM)
-roundRect(268, 76, 168, 92, 26, MATCHA)
-roundRect(268, 184, 168, 92, 26, CREAM)
-roundRect(76, 300, 104, 136, 26, MATCHA)
-roundRect(204, 300, 232, 136, 26, CREAM)
+// Compartments, the bento grid. The site mark in 64 space, times eight.
+roundRect(64, 64, 216, 384, 0, CREAM)
+roundRect(312, 64, 136, 152, 0, SILVER_DIM)
+roundRect(312, 248, 136, 200, 0, CREAM)
 
-// The grease pencil pass, struck over the largest compartment.
-ring(160, 176, 74, 15, GREASE, 0.95)
+// The grease pencil pass, struck over the tall compartment.
+ring(172, 256, 94, 23, GREASE, 0.95)
 
 // ---------------------------------------------------------------------------
 // Downsample and encode
