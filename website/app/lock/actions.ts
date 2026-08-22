@@ -11,7 +11,17 @@ export type UnlockResult = { ok: true } | { ok: false; error: string }
 /** Roughly a quarter second, enough to blunt a script hammering the form. */
 const REJECT_DELAY_MS = 250
 
+/**
+ * Whether to mark the session cookie Secure.
+ *
+ * Reading NEXT_PUBLIC_SITE_URL would be a chicken and egg problem on a first
+ * deploy: you cannot know the url until after it deploys, and a cookie without
+ * Secure on https is a downgrade nobody would notice. Vercel sets VERCEL_ENV on
+ * every deployment and always serves https, so that is the reliable signal, and
+ * anything else falls back to the configured origin.
+ */
 function isSecure(): boolean {
+  if (process.env.VERCEL_ENV) return true
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "").startsWith("https://")
 }
 

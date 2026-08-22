@@ -1,17 +1,11 @@
-import { writeFileSync } from "node:fs"
-import { randomUUID } from "node:crypto"
-
 import { hasValidBearer, unauthorized } from "~/lib/auth"
+import { deleteScreenshot, saveScreenshot } from "~/lib/blob"
 import { corsJson, corsPreflight } from "~/lib/cors"
-import { folderExists } from "~/lib/db/folders"
 import { upsertByUrl } from "~/lib/db/bookmarks"
-import { deleteScreenshot, screenshotPath } from "~/lib/db/client"
+import { folderExists } from "~/lib/db/folders"
 import { normalizeUrl, parseTags } from "~/lib/format"
-import { siteUrl } from "~/lib/site-url"
 
 export const runtime = "nodejs"
-
-const MAX_SCREENSHOT_BYTES = 3 * 1024 * 1024
 
 export function OPTIONS(request: Request) {
   return corsPreflight(request)
@@ -45,27 +39,26 @@ export async function POST(request: Request) {
   // extension's storage. The foreign key would reject the whole capture over
   // it, so fall back to unfiled instead of failing a capture on a filing
   // detail, and tell the caller so it can forget the stale id.
-  const folderIdValid = Boolean(rawFolderId) && folderExists(rawFolderId)
+  const folderIdValid = Boolean(rawFolderId) && (await folderExists(rawFolderId))
   const folderId = folderIdValid ? rawFolderId : null
 
   let screenshotUrl: string | null = null
   const screenshot = form.get("screenshot")
 
   if (screenshot instanceof File && screenshot.size > 0) {
-    if (screenshot.size > MAX_SCREENSHOT_BYTES) {
-      return corsJson(request, { error: "Screenshot is too large." }, { status: 413 })
-    }
+    const saved = await saveScreenshot(screenshot)
 
-    const filename = `${randomUUID()}.jpg`
-    const path = screenshotPath(filename)
-
-    if (path) {
-      writeFileSync(path, Buffer.from(await screenshot.arrayBuffer()))
-      screenshotUrl = `${siteUrl()}/api/screenshots/${filename}`
+    if (saved.ok) {
+      screenshotUrl = saved.url
+    } else if (saved.error === "Screenshot is too large.") {
+      return corsJson(request, { error: saved.error }, { status: 413 })
     }
+    // Any other upload failure is not worth losing the capture over. The
+    // bookmark saves without a picture and the frame falls back to its
+    // lettered mark, which is a designed state rather than an error.
   }
 
-  const { bookmark, updated, replacedScreenshotUrl } = upsertByUrl({
+  const { bookmark, updated, replacedScreenshotUrl } = await upsertByUrl({
     url,
     title,
     faviconUrl,
@@ -75,9 +68,9 @@ export async function POST(request: Request) {
     folderId
   })
 
-  // A recapture that brings a new screenshot leaves the old file behind on
-  // disk with nothing pointing at it any more, once the row moves on.
-  deleteScreenshot(replacedScreenshotUrl)
+  // A recapture that brings a new screenshot leaves the old one with nothing
+  // pointing at it any more, once the row moves on.
+  await deleteScreenshot(replacedScreenshotUrl)
 
   return corsJson(request, {
     bookmark,

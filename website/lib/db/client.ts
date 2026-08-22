@@ -1,65 +1,69 @@
 import { randomUUID } from "node:crypto"
-import { existsSync, mkdirSync, unlinkSync } from "node:fs"
-import { DatabaseSync } from "node:sqlite"
-import { resolve } from "node:path"
 
-import { SCHEMA } from "./schema.ts"
+import { createClient, type Client, type InStatement } from "@libsql/client"
 
 /**
- * Bento is single user and self hosted, so the database is one SQLite file on
- * disk rather than a managed Postgres project. node:sqlite is built into Node
- * 22.5 and later, so this needs no native module and nothing to compile.
+ * The database handle.
  *
- * This needs a writable, persistent filesystem. It will not survive on a
- * platform with an ephemeral or read only filesystem between requests, such as
- * Vercel's serverless functions. Run it somewhere with a real disk: a small
- * VPS, a Fly or Railway instance with a volume, a home server, Docker with a
- * bind mount. See README.md.
+ * Bento used to keep a SQLite file on disk, which was the right shape for a
+ * single user until it needed to run somewhere without a disk. Turso is the
+ * same engine reached over the network, so the schema in schema.ts applies
+ * verbatim, `json_each` and `collate nocase` and all.
+ *
+ * What changes is the cost model. A local query was measured in microseconds,
+ * so making five of them to render a page was free. Each one is now a network
+ * round trip, so anything that used to be several queries in a row should go
+ * through `readBatch` below and become one.
  */
 
-function dataDir(): string {
-  return resolve(process.env.BENTO_DATA_DIR ?? "./data")
+function connectionConfig() {
+  const url = process.env.TURSO_DATABASE_URL
+
+  if (!url) {
+    throw new Error(
+      "Missing TURSO_DATABASE_URL. Set it in website/.env.local for local work, " +
+        "or in the project's environment variables once deployed."
+    )
+  }
+
+  // A libsql:// or https:// url is remote and needs a token. A file: url is
+  // local, which is what the tests and any offline poking use.
+  const remote = url.startsWith("libsql://") || url.startsWith("https://")
+  const authToken = process.env.TURSO_AUTH_TOKEN
+
+  if (remote && !authToken) {
+    throw new Error("Missing TURSO_AUTH_TOKEN. A remote Turso url needs one.")
+  }
+
+  return remote ? { url, authToken } : { url }
 }
 
-function open(): DatabaseSync {
-  const dir = dataDir()
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-
-  const path = resolve(dir, "bento.sqlite3")
-  const instance = new DatabaseSync(path)
-
-  instance.exec("pragma journal_mode = WAL")
-  instance.exec("pragma foreign_keys = ON")
-  // Two requests writing at the same instant would otherwise fail outright
-  // with "database is locked" instead of one briefly waiting its turn.
-  instance.exec("pragma busy_timeout = 5000")
-  instance.exec(SCHEMA)
-
-  return instance
-}
-
-// Next.js hot reloads modules in dev, which would otherwise open a second
-// connection to the same file on every save. Stash the singleton on
-// globalThis so a reload picks the existing one back up.
-const globalForDb = globalThis as unknown as { bentoDb?: DatabaseSync }
+// Next hot reloads modules in development, and would otherwise build a new
+// client on every save. Stashing it on globalThis lets a reload pick up the
+// existing one.
+const globalForDb = globalThis as unknown as { bentoDb?: Client }
 
 /**
- * A lazy handle. Opening eagerly at module load used to mean that merely
- * importing this file, which next build does for every route it statically
- * analyses, touched the database, and touched it from more than one build
- * worker at once. The proxy defers the real DatabaseSync until the first
- * query actually runs, so importing the module has no side effect and every
- * call site below can keep using `db.prepare(...)` unchanged.
+ * Built on first use rather than at module load. `next build` imports every
+ * route it statically analyses, and constructing the client then would mean
+ * the build failing on a machine that has no database credentials, which is
+ * exactly what CI is.
  */
-export const db: DatabaseSync = new Proxy({} as DatabaseSync, {
-  get(_target, prop, receiver) {
-    if (!globalForDb.bentoDb) globalForDb.bentoDb = open()
+export function db(): Client {
+  if (!globalForDb.bentoDb) globalForDb.bentoDb = createClient(connectionConfig())
+  return globalForDb.bentoDb
+}
 
-    const instance = globalForDb.bentoDb
-    const value = Reflect.get(instance, prop, receiver)
-    return typeof value === "function" ? value.bind(instance) : value
-  }
-})
+/**
+ * Sends several reads as one round trip.
+ *
+ * Worth using anywhere a page needs more than one query. Measured against a
+ * Mumbai database from a laptop in Pakistan, five sequential reads took about
+ * 400ms and the same five batched took about 150ms.
+ */
+export function readBatch(statements: InStatement[]) {
+  return db().batch(statements, "read")
+}
 
 export function newId(): string {
   return randomUUID()
@@ -67,50 +71,4 @@ export function newId(): string {
 
 export function now(): string {
   return new Date().toISOString()
-}
-
-/** Where screenshot files live on disk, kept next to the database. */
-export function screenshotDir(): string {
-  const dir = resolve(dataDir(), "screenshots")
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  return dir
-}
-
-const SAFE_FILENAME = /^[a-f0-9-]{36}\.jpg$/
-
-/**
- * Resolves a screenshot filename to its path on disk. Only accepts the exact
- * shape saveScreenshot produces, a uuid plus ".jpg", so a filename coming from
- * a request URL cannot walk out of the screenshots directory with "../".
- */
-export function screenshotPath(filename: string): string | null {
-  if (!SAFE_FILENAME.test(filename)) return null
-  return resolve(screenshotDir(), filename)
-}
-
-/** Pulls "<uuid>.jpg" back out of an absolute /api/screenshots/ url. */
-export function screenshotFilename(url: string | null): string | null {
-  if (!url) return null
-  const marker = "/api/screenshots/"
-  const at = url.indexOf(marker)
-  return at === -1 ? null : url.slice(at + marker.length)
-}
-
-/**
- * Removes a screenshot file given its stored url. Used when a bookmark is
- * deleted and when a re-capture replaces the screenshot it had. Missing or
- * already gone is not an error, there is nothing left to clean up either way.
- */
-export function deleteScreenshot(url: string | null): void {
-  const filename = screenshotFilename(url)
-  if (!filename) return
-
-  const path = screenshotPath(filename)
-  if (!path) return
-
-  try {
-    unlinkSync(path)
-  } catch {
-    // Already gone, or never written.
-  }
 }

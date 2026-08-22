@@ -12,5 +12,5 @@ export function OPTIONS(request: Request) {
 export async function GET(request: Request) {
   if (!(await hasValidBearer(request))) return unauthorized(request)
 
-  return corsJson(request, { folders: listFolders() })
+  return corsJson(request, { folders: await listFolders() })
 }

@@ -1,14 +1,13 @@
 import assert from "node:assert/strict"
-import { after, describe, it } from "node:test"
+import { describe, it } from "node:test"
 
-import { authed, cleanupDataDir, setUpTempDataDir } from "~/lib/test-support"
+import { authed, setUpTestDatabase } from "~/lib/test-support"
 
-setUpTempDataDir()
+await setUpTestDatabase()
 
 const { PATCH } = await import("./route.ts")
 const { upsertByUrl } = await import("~/lib/db/bookmarks")
 
-after(cleanupDataDir)
 
 function patch(id: string, body: unknown, init: RequestInit = authed()) {
   return PATCH(
@@ -29,7 +28,7 @@ describe("PATCH /api/bookmarks/[id]", () => {
   })
 
   it("stars an existing bookmark", async () => {
-    const { bookmark } = upsertByUrl({
+    const { bookmark } = await upsertByUrl({
       url: "https://example.com/star-me",
       title: "Star me",
       faviconUrl: null,

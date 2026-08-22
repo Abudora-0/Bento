@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache"
 
+import { deleteScreenshot } from "~/lib/blob"
 import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
-import { deleteScreenshot } from "~/lib/db/client"
 import { discoverFaviconUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
 
@@ -39,11 +39,11 @@ export async function createBookmark(formData: FormData): Promise<ActionResult> 
 
     // Best effort, and bounded, a slow or unreachable site should not stop the
     // bookmark from saving. Nothing reads a screenshot for a typed address
-    // though, that would need rendering the page, the compartment falls back
-    // to a lettered mark for those, which is by design.
+    // though, that would need rendering the page, so those frames fall back to
+    // a lettered mark, which is by design.
     const faviconUrl = await discoverFaviconUrl(url).catch(() => null)
 
-    bookmarks.upsertByUrl({
+    await bookmarks.upsertByUrl({
       url,
       title: typedTitle || hostnameOf(url),
       faviconUrl,
@@ -65,7 +65,7 @@ export async function updateBookmark(formData: FormData): Promise<ActionResult> 
     const id = String(formData.get("id") ?? "")
     if (!id) return { ok: false, error: "Missing bookmark id." }
 
-    const updated = bookmarks.editBookmark(id, {
+    const updated = await bookmarks.editBookmark(id, {
       title: String(formData.get("title") ?? "").trim().slice(0, 500),
       notes: String(formData.get("notes") ?? "").slice(0, 10000),
       tags: parseTags(String(formData.get("tags") ?? "")),
@@ -83,7 +83,9 @@ export async function updateBookmark(formData: FormData): Promise<ActionResult> 
 
 export async function setStarred(id: string, starred: boolean): Promise<ActionResult> {
   try {
-    if (!bookmarks.setStarred(id, starred)) return { ok: false, error: "That bookmark no longer exists." }
+    if (!(await bookmarks.setStarred(id, starred))) {
+      return { ok: false, error: "That bookmark no longer exists." }
+    }
 
     refresh()
     return { ok: true }
@@ -94,7 +96,7 @@ export async function setStarred(id: string, starred: boolean): Promise<ActionRe
 
 export async function deleteBookmark(id: string): Promise<ActionResult> {
   try {
-    deleteScreenshot(bookmarks.deleteBookmark(id))
+    await deleteScreenshot(await bookmarks.deleteBookmark(id))
 
     refresh()
     return { ok: true }
@@ -111,7 +113,7 @@ export async function createFolder(formData: FormData): Promise<ActionResult> {
   const name = String(formData.get("name") ?? "").trim().slice(0, 60)
   if (!name) return { ok: false, error: "Give the folder a name." }
 
-  const result = folders.createFolder(name)
+  const result = await folders.createFolder(name)
   if (!result.ok) return result
 
   refresh()
@@ -122,7 +124,7 @@ export async function renameFolder(id: string, name: string): Promise<ActionResu
   const clean = name.trim().slice(0, 60)
   if (!clean) return { ok: false, error: "Give the folder a name." }
 
-  const result = folders.renameFolder(id, clean)
+  const result = await folders.renameFolder(id, clean)
   if (!result.ok) return result
 
   refresh()
@@ -131,7 +133,7 @@ export async function renameFolder(id: string, name: string): Promise<ActionResu
 
 /** Deletes the folder. Bookmarks inside it survive and become unfiled. */
 export async function deleteFolder(id: string): Promise<ActionResult> {
-  if (!folders.deleteFolder(id)) return { ok: false, error: "That folder no longer exists." }
+  if (!(await folders.deleteFolder(id))) return { ok: false, error: "That folder no longer exists." }
 
   refresh()
   return { ok: true }

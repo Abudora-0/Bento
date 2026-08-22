@@ -1,16 +1,12 @@
 import assert from "node:assert/strict"
-import { existsSync, readdirSync } from "node:fs"
-import { after, describe, it } from "node:test"
+import { describe, it } from "node:test"
 
-import { authed, cleanupDataDir, setUpTempDataDir } from "~/lib/test-support"
+import { authed, setUpTestDatabase } from "~/lib/test-support"
 
-setUpTempDataDir()
+await setUpTestDatabase()
 
 const { POST, OPTIONS } = await import("./route.ts")
 const { createFolder } = await import("~/lib/db/folders")
-const { screenshotDir } = await import("~/lib/db/client")
-
-after(cleanupDataDir)
 
 function jpegFile(byte: number, size = 16): File {
   return new File([new Uint8Array(size).fill(byte)], "shot.jpg", { type: "image/jpeg" })
@@ -59,7 +55,10 @@ describe("POST /api/capture", () => {
   })
 
   it("falls back to unfiled when the folder id does not exist, and says so", async () => {
-    const res = await capture({ url: "https://example.com/c", folderId: "00000000-0000-0000-0000-000000000000" })
+    const res = await capture({
+      url: "https://example.com/c",
+      folderId: "00000000-0000-0000-0000-000000000000"
+    })
     const body = (await res.json()) as { bookmark: { folder_id: string | null }; folderWasStale: boolean }
 
     assert.equal(body.folderWasStale, true)
@@ -67,7 +66,7 @@ describe("POST /api/capture", () => {
   })
 
   it("files into a folder that does exist", async () => {
-    const folder = createFolder("Reading")
+    const folder = await createFolder("Reading")
     assert.ok(folder.ok)
 
     const res = await capture({ url: "https://example.com/d", folderId: folder.ok ? folder.folder.id : "" })
@@ -77,44 +76,34 @@ describe("POST /api/capture", () => {
     assert.equal(body.bookmark.folder_id, folder.ok ? folder.folder.id : null)
   })
 
-  it("saves a screenshot to disk and returns an absolute url for it", async () => {
-    const before = readdirSync(screenshotDir())
-
-    const res = await capture({ url: "https://example.com/e", screenshot: jpegFile(1) })
-    const body = (await res.json()) as { bookmark: { screenshot_url: string | null } }
-
-    assert.ok(body.bookmark.screenshot_url?.startsWith("http://localhost:3000/api/screenshots/"))
-
-    const after_ = readdirSync(screenshotDir())
-    assert.equal(after_.length, before.length + 1)
-  })
-
-  it("deletes the old screenshot file when a recapture brings a new one", async () => {
-    const first = await capture({ url: "https://example.com/f", screenshot: jpegFile(2) })
-    const firstBody = (await first.json()) as { bookmark: { screenshot_url: string } }
-    const firstFilename = firstBody.bookmark.screenshot_url.split("/").at(-1) as string
-
-    assert.ok(existsSync(`${screenshotDir()}/${firstFilename}`), "first screenshot should exist right after capture")
-
-    const second = await capture({ url: "https://example.com/f", screenshot: jpegFile(3) })
-    const secondBody = (await second.json()) as { bookmark: { screenshot_url: string } }
-    const secondFilename = secondBody.bookmark.screenshot_url.split("/").at(-1) as string
-
-    assert.notEqual(secondFilename, firstFilename)
-    assert.ok(existsSync(`${screenshotDir()}/${secondFilename}`), "second screenshot should exist")
-    assert.ok(!existsSync(`${screenshotDir()}/${firstFilename}`), "first screenshot should have been deleted")
-  })
-
-  it("rejects a screenshot over the size cap", async () => {
-    // The route caps at 3 * 1024 * 1024 (3,145,728) bytes, comfortably over it.
+  it("rejects a screenshot over the size cap before trying to upload it", async () => {
+    // The cap is checked ahead of the blob store, so this holds whether or not
+    // one is configured.
     const res = await capture({ url: "https://example.com/g", screenshot: jpegFile(4, 3_200_000) })
     assert.equal(res.status, 413)
+  })
+
+  it("still saves the capture when there is no blob store, just without a picture", async () => {
+    // No BLOB_READ_WRITE_TOKEN in tests. Losing the whole bookmark because the
+    // picture could not be stored would be the wrong trade, the frame already
+    // has a designed state for having no screenshot.
+    const res = await capture({ url: "https://example.com/h", title: "No store", screenshot: jpegFile(1) })
+
+    assert.equal(res.status, 200)
+    const body = (await res.json()) as { bookmark: { title: string; screenshot_url: string | null } }
+    assert.equal(body.bookmark.title, "No store")
+    assert.equal(body.bookmark.screenshot_url, null)
   })
 })
 
 describe("OPTIONS /api/capture", () => {
   it("answers the preflight", () => {
-    const res = OPTIONS(new Request("http://x/api/capture", { method: "OPTIONS", headers: { origin: "chrome-extension://abc" } }))
+    const res = OPTIONS(
+      new Request("http://x/api/capture", {
+        method: "OPTIONS",
+        headers: { origin: "chrome-extension://abc" }
+      })
+    )
     assert.equal(res.status, 204)
     assert.equal(res.headers.get("access-control-allow-origin"), "chrome-extension://abc")
   })

@@ -1,14 +1,13 @@
 import assert from "node:assert/strict"
-import { after, describe, it } from "node:test"
+import { describe, it } from "node:test"
 
-import { authed, cleanupDataDir, setUpTempDataDir } from "~/lib/test-support"
+import { authed, setUpTestDatabase } from "~/lib/test-support"
 
-setUpTempDataDir()
+await setUpTestDatabase()
 
 const { GET, OPTIONS } = await import("./route.ts")
 const { createFolder } = await import("~/lib/db/folders")
 
-after(cleanupDataDir)
 
 describe("GET /api/folders", () => {
   it("refuses a request with no bearer token", async () => {
@@ -22,8 +21,8 @@ describe("GET /api/folders", () => {
   })
 
   it("lists folders alphabetically once authenticated", async () => {
-    createFolder("Reading")
-    createFolder("Archive")
+    await createFolder("Reading")
+    await createFolder("Archive")
 
     const res = await GET(new Request("http://x/api/folders", authed()))
     assert.equal(res.status, 200)

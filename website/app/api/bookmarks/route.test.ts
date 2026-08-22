@@ -1,14 +1,13 @@
 import assert from "node:assert/strict"
-import { after, describe, it } from "node:test"
+import { describe, it } from "node:test"
 
-import { authed, cleanupDataDir, setUpTempDataDir } from "~/lib/test-support"
+import { authed, setUpTestDatabase } from "~/lib/test-support"
 
-setUpTempDataDir()
+await setUpTestDatabase()
 
 const { GET } = await import("./route.ts")
 const { upsertByUrl } = await import("~/lib/db/bookmarks")
 
-after(cleanupDataDir)
 
 describe("GET /api/bookmarks", () => {
   it("refuses without a bearer token", async () => {
@@ -18,7 +17,7 @@ describe("GET /api/bookmarks", () => {
 
   it("returns the newest captures first, plus a total count", async () => {
     for (let i = 0; i < 3; i++) {
-      upsertByUrl({
+      await upsertByUrl({
         url: `https://example.com/${i}`,
         title: `Page ${i}`,
         faviconUrl: null,

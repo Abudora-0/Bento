@@ -6,8 +6,7 @@ import { FolderRail } from "~/components/FolderRail"
 import { Pagination } from "~/components/Pagination"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { TRAY_GRID, compartment } from "~/lib/bento-layout"
-import { listAllTags, listBookmarks } from "~/lib/db/bookmarks"
-import { listFolders } from "~/lib/db/folders"
+import { loadTray } from "~/lib/db/bookmarks"
 import { PAGE_SIZE, pageOffset, parsePage, totalPages } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
 import { parseSort, sortOption } from "~/lib/sort"
@@ -36,7 +35,7 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   const page = parsePage(params.page)
   const from = pageOffset(page)
 
-  const { rows, total } = listBookmarks({
+  const { rows, total, folders: allFolders, allTags } = await loadTray({
     q: q || undefined,
     tag: tag || undefined,
     folder: folder || undefined,
@@ -47,7 +46,6 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
     offset: from
   })
 
-  const allFolders = listFolders()
   const lastPage = totalPages(total)
 
   // Deleting the last few rows, or arriving on a bookmarked deep link, can put
@@ -63,7 +61,7 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
 
   // Tag counts across the whole roll, so the filter row does not shrink as you filter.
   const tagCounts = new Map<string, number>()
-  for (const bookmarkTags of listAllTags()) {
+  for (const bookmarkTags of allTags) {
     for (const t of bookmarkTags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1)
   }
   const topTags = [...tagCounts.entries()]

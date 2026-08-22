@@ -19,8 +19,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return corsJson(request, { error: "Expected { starred: boolean }." }, { status: 400 })
   }
 
-  const ok = setStarred(id, body.starred)
+  const ok = await setStarred(id, body.starred)
   if (!ok) return corsJson(request, { error: "No bookmark with that id." }, { status: 404 })
 
-  return corsJson(request, { bookmark: getBookmark(id) })
+  return corsJson(request, { bookmark: await getBookmark(id) })
 }

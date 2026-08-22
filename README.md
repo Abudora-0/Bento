@@ -4,15 +4,15 @@
 
 **A contact sheet for everything you save.**
 
-A self hosted bookmark manager in two pieces: a browser extension that captures the tab you are looking at, and a site that lays every capture out as a frame on a contact sheet. One SQLite file on disk. No accounts, no cloud, no third party.
+A self hosted bookmark manager in two pieces: a browser extension that captures the tab you are looking at, and a site that lays every capture out as a frame on a contact sheet. SQLite for storage, one lock instead of accounts.
 
 [![CI](https://github.com/Abudora-0/Bento/actions/workflows/ci.yml/badge.svg)](https://github.com/Abudora-0/Bento/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-c9a24a.svg)](LICENSE)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-0d0d0e.svg?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![SQLite](https://img.shields.io/badge/SQLite-node%3Asqlite-003b57.svg?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
+[![Turso](https://img.shields.io/badge/Turso-libSQL-4ff8d2.svg?logo=turso&logoColor=black)](https://turso.tech)
 [![Plasmo MV3](https://img.shields.io/badge/Plasmo-MV3-cc352c.svg)](https://www.plasmo.com)
-[![Tests](https://img.shields.io/badge/tests-105%20passing-78965a.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-117%20passing-78965a.svg)](#testing)
 
 </div>
 
@@ -22,7 +22,7 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 
 Bento is a bookmark manager built around one idea: a saved page is a photograph you took of the web, so it should be filed like one. Every capture becomes a numbered frame on a contact sheet, complete with sprocket holes, a date stamp, and a hand drawn grease pencil circle on the ones worth keeping.
 
-It runs entirely on your own machine. There is no sign up, no sync service, and nothing leaves your computer except the request that fetches a favicon.
+There is no sign up and no account system. One name and one secret open it, and the same secret is what the extension uses, so the two halves never need separate credentials.
 
 > **Screenshots.** Drop images into `docs/` and reference them here. There is no automated capture in the repo, so this section is deliberately left for you to fill in with the real thing rather than a mockup.
 
@@ -58,10 +58,12 @@ Motion follows the same metaphor. Frames develop in rather than fading, the grea
 | Piece | Built with |
 | --- | --- |
 | Website | Next.js 15 App Router, React 19, TypeScript, Tailwind CSS v4 |
-| Data | SQLite through Node's built in `node:sqlite`, one file, nothing to compile |
+| Data | SQLite, through Turso and libSQL |
 | Extension | Plasmo, React, TypeScript, Manifest V3, Chrome and other Chromium browsers |
 
-The site's own pages talk to SQLite directly from server actions, with nothing in between. The extension cannot do that, since a browser extension has no filesystem access, so it calls a handful of API routes instead. Those routes are the only part of this project that looks like a conventional backend.
+The site's own pages query the database directly from server actions, with nothing in between. The extension cannot do that, so it calls a handful of API routes instead. Those routes are the only part of this project that looks like a conventional backend.
+
+Every query is a network round trip now, so the tray page sends its four reads as a single batch. Locally that measured 404ms sequential against 149ms batched, and colocating the app with the database makes both far smaller.
 
 ## Security model
 
@@ -79,13 +81,17 @@ It locks again in three ways, which together are what stop somebody else on your
 
 Both credentials are compared in constant time, after hashing to a fixed length so a length mismatch leaks nothing. A failed attempt never says which half was wrong.
 
-> **What this does not do.** It locks the web interface. Anyone with filesystem access to the machine can still read `website/data/bento.sqlite3` directly. Encrypting at rest would need a key that has to live somewhere on the same disk anyway, and would break the extension's access, so it is deliberately out of scope rather than quietly implied.
+> **What this does not do.** It locks the web interface. Anyone holding `TURSO_AUTH_TOKEN` can read the database directly, and anyone holding `BENTO_SECRET` can drive the API without ever seeing the lock screen. Both are exactly as sensitive as the bookmarks themselves, so keep them in environment variables and out of the repository.
 
 ## Setup
 
-You need a Node new enough that `node:sqlite` works without an experimental flag. Built and tested on Node 24. Check with `node -e "require('node:sqlite')"`, and if that prints nothing you are fine.
+Node 20 or newer, and a free Turso account.
 
-### 1. The site
+### 1. The database
+
+Create a database at [turso.tech](https://turso.tech) and generate a read and write token for it. Pick a region close to wherever the app will run rather than close to you: your browser hits the site once per page, the site hits the database several times.
+
+### 2. The site
 
 ```bash
 cd website
@@ -100,8 +106,14 @@ Fill in `.env.local`:
 | `BENTO_USER` | The name you type on the lock screen |
 | `BENTO_SECRET` | The password, and the extension's bearer token. `openssl rand -hex 24` |
 | `BENTO_LOCK_MINUTES` | Idle minutes before it locks itself. Defaults to 30 |
-| `BENTO_DATA_DIR` | Where the database and screenshots live. Defaults to `./data` |
-| `NEXT_PUBLIC_SITE_URL` | The origin you actually reach it on |
+| `TURSO_DATABASE_URL` | From step 1 |
+| `TURSO_AUTH_TOKEN` | From step 1 |
+
+Create the tables, which is safe to run again at any time:
+
+```bash
+npm run db:push
+```
 
 Then:
 
@@ -109,9 +121,9 @@ Then:
 npm run dev
 ```
 
-It runs at http://localhost:3000 and creates `website/data/bento.sqlite3` the first time it is asked for anything.
+It runs at http://localhost:3000.
 
-### 2. The extension
+### 3. The extension
 
 ```bash
 cd extension
@@ -142,7 +154,9 @@ cd website
 npm test
 ```
 
-105 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, and all five API routes end to end against a real temporary SQLite database.
+117 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end.
+
+The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
 
 ## Scripts
 
@@ -152,6 +166,7 @@ npm test
 npm run dev         # development server
 npm run build       # production build
 npm run start       # run the production build
+npm run db:push     # apply the schema to whichever database is configured
 npm test            # node:test
 npm run typecheck   # tsc --noEmit
 npm run lint
@@ -169,20 +184,22 @@ npm run typecheck
 
 The toolbar icon is generated rather than committed as an opaque binary. `scripts/make-icon.mjs` draws it with plain arithmetic and writes the PNG itself, zlib deflate and CRC32 by hand, so a change to the mark is a readable diff.
 
-## Running it somewhere real
+## Deploying
 
-This needs a real, persistent disk. The database and every screenshot are files under `BENTO_DATA_DIR`, and they will not survive a platform with an ephemeral or read only filesystem between requests. **It is not going on Vercel.**
+It runs on Vercel's free tier. Nothing is written to disk, so there is no volume to attach and nothing to keep alive.
 
-What it wants is a small always on box: a cheap VPS, a Fly or Railway instance with a volume attached, a Docker container with a bind mount, or a home server. Anywhere `website/data` is still there on the next request.
-
-```bash
-npm run build
-BENTO_USER=... BENTO_SECRET=... NEXT_PUBLIC_SITE_URL=https://your-domain npm run start
-```
-
-Put a reverse proxy in front for TLS, point the extension at that origin, and it is done. There is no database to provision and nothing else to stand up.
+1. Import the repository on Vercel and set **Root Directory** to `website`. It is a monorepo, and skipping this is the one mistake that fails confusingly.
+2. Under Storage, create a **Blob** store and connect it to the project. Vercel injects `BLOB_READ_WRITE_TOKEN` for you.
+3. Set `BENTO_USER`, `BENTO_SECRET`, `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as environment variables.
+4. Under Settings, Functions, set the region to match wherever your Turso database lives. This is worth doing: the app queries the database far more often than your browser queries the app, so the hop that matters is the one between them.
+5. Run `npm run db:push` once against the production database, if you have not already.
+6. Point the extension popup at the deployed url, using the same `BENTO_SECRET`.
 
 Fonts are self hosted from Fontsource rather than fetched by `next/font/google`, so the build makes no network calls for them.
+
+### Somewhere other than Vercel
+
+Nothing here is Vercel specific except Blob. Any host that runs Next will do, and swapping `lib/blob.ts` for Cloudflare R2 or S3 is a small, self contained change: it is two functions, one that stores a file and one that deletes it.
 
 ## Licence
 

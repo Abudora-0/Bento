@@ -14,5 +14,7 @@ export async function GET(request: Request) {
 
   const limit = Math.min(Math.max(Number(new URL(request.url).searchParams.get("limit")) || 12, 1), 50)
 
-  return corsJson(request, { bookmarks: recentBookmarks(limit), total: countBookmarks() })
+  const [bookmarks, total] = await Promise.all([recentBookmarks(limit), countBookmarks()])
+
+  return corsJson(request, { bookmarks, total })
 }
