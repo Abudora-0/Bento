@@ -46,6 +46,21 @@ The code is here rather than hidden because the point of it is not secrecy. It k
 
 If you would rather run your own, the whole thing is below and takes about five minutes.
 
+## Installing the extension
+
+Grab the latest zip from [Releases](https://github.com/Abudora-0/Bento/releases/latest), then:
+
+1. Unzip it.
+2. Open `chrome://extensions`, or `edge://extensions`.
+3. Switch on **Developer mode**, choose **Load unpacked**, and pick the unzipped folder.
+4. Open the popup and paste in your site's address and your extension token, which is on the site under **Settings**.
+
+Your browser will warn about developer mode every time it starts. That is the cost of installing from outside a store, not a sign anything is wrong.
+
+There is no `.crx` download on purpose. Chrome refuses to install a packaged extension from anywhere but its own web store, so a `.crx` here would only look like it worked, then fail silently. Loading the unpacked folder is the sideload that actually works.
+
+The build is plain Chromium MV3, so it loads in Chrome, Edge, Brave, Arc, Vivaldi and Opera unchanged. Firefox needs a different target and is not built yet.
+
 ## Features
 
 **Capturing**
@@ -181,7 +196,9 @@ npm install
 npm run dev
 ```
 
-Load it at `chrome://extensions`, switch on Developer mode, choose **Load unpacked**, and pick `extension/build/chrome-mv3-dev`. For a production bundle run `npm run build` and pick `extension/build/chrome-mv3-prod`.
+Load it at `chrome://extensions`, switch on Developer mode, choose **Load unpacked**, and pick `extension/build/chrome-mv3-dev`. For a production bundle run `npm run build` and pick `extension/build/chrome-mv3-prod`, or `npm run package` to get the same zip that goes on a release.
+
+If you only want to *use* Bento rather than work on it, take the zip from [Releases](https://github.com/Abudora-0/Bento/releases/latest) instead. See [Installing the extension](#installing-the-extension).
 
 Open the popup. It asks for the site's address and your extension token, which is on the site under **Settings**. Copy it, paste it in, and the popup checks both fields against the real API before it saves them.
 
@@ -275,6 +292,18 @@ Fonts are self hosted from Fontsource rather than fetched by `next/font/google`,
 ### Somewhere other than Vercel
 
 Nothing here is Vercel specific except Blob. Any host that runs Next will do, and swapping `lib/blob.ts` for Cloudflare R2 or S3 is a small, self contained change: it is two functions, one that stores a file and one that deletes it.
+
+## Privacy
+
+Bento has no servers of its own. Every deployment belongs to whoever set it up, and the extension only ever talks to the address you type into it.
+
+**The extension** stores two things in `chrome.storage.local`: the site address you paired it with, and your extension token. Neither leaves your browser except in requests to that address. It reads the current tab's title, url, favicon and a screenshot **only when you press Capture or the keyboard shortcut**, never in the background, and sends them to your Bento and nowhere else. Its permissions are `activeTab`, `tabs` and `storage`, and it requests no host permissions at all.
+
+**The site** stores your email, a username, a PBKDF2 hash of your password, and your bookmarks. Screenshots go to whichever blob store the deployment is configured with. Nothing is sent to any third party, there is no analytics, and there are no cookies beyond the one signed session cookie the lock needs.
+
+**Favicons are fetched by the server**, not your browser, when you add a bookmark by hand. That request goes to the site you bookmarked. It is guarded against pointing at private network addresses, see `lib/ssrf-guard.ts`.
+
+If you use someone else's deployment, all of the above is true of them rather than of this project, and they can read the database. Run your own if that matters to you.
 
 ## Licence
 
