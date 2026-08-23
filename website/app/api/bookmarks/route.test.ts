@@ -28,6 +28,16 @@ describe("GET /api/bookmarks", () => {
         notes: "",
         folderId: null
       })
+
+      /*
+       * created_at has millisecond resolution, and three inserts against an
+       * in memory database can easily land inside one. Rows that tie on the
+       * sort column fall back to the id tiebreak, which is a random uuid, so
+       * without this the expected order is a coin toss. It passed locally for
+       * a long time and then failed on a faster CI runner, which is the usual
+       * way this kind of thing announces itself.
+       */
+      await new Promise((resolve) => setTimeout(resolve, 2))
     }
 
     const res = await GET(new Request("http://x/api/bookmarks?limit=2", authed(user.api_token)))
@@ -35,8 +45,10 @@ describe("GET /api/bookmarks", () => {
 
     const body = (await res.json()) as { bookmarks: { url: string }[]; total: number }
     assert.equal(body.total, 3)
-    assert.equal(body.bookmarks.length, 2)
-    assert.equal(body.bookmarks[0].url, "https://example.com/2")
+    assert.deepEqual(
+      body.bookmarks.map((b) => b.url),
+      ["https://example.com/2", "https://example.com/1"]
+    )
   })
 
   it("clamps an absurd limit rather than erroring", async () => {
