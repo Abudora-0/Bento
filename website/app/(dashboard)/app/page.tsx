@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { FolderRail } from "~/components/FolderRail"
+import { GetExtension } from "~/components/GetExtension"
 import { Pagination } from "~/components/Pagination"
 import { Sheet } from "~/components/Sheet"
 import { TrayToolbar } from "~/components/TrayToolbar"
@@ -211,8 +212,10 @@ function EmptySheet({ filtering }: { filtering: boolean }) {
       <p className="mt-3 max-w-sm text-[11px] leading-relaxed text-silver-dim">
         {filtering
           ? "No saved page matches those filters. Clear them to see the whole roll again."
-          : "Press Add to expose one by hand, or pin the Bento extension to your toolbar and capture the page you are on."}
+          : "Press Add to expose one by hand, or put the extension on your toolbar and capture whatever page you are looking at."}
       </p>
+
+      {filtering ? null : <GetExtension compact />}
     </div>
   )
 }

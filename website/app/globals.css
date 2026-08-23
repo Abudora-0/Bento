@@ -294,6 +294,16 @@
     color: var(--color-print);
   }
 
+  /* A step below head-2, for a panel heading inside a frame. */
+  .head-3 {
+    font-family: var(--font-head);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-print);
+  }
+
   /* The frame number, the only place red is used as text. */
   /* Tabular figures everywhere a number changes in place. Proportional digits
      make a counter jitter as it ticks, which is the sort of thing you notice

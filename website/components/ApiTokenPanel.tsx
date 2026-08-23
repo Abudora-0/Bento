@@ -44,7 +44,7 @@ export function ApiTokenPanel({ initialToken }: { initialToken: string }) {
   return (
     <div className="frame">
       <div className="relative flex items-center justify-between gap-2">
-        <span className="frame-no">01</span>
+        <span className="frame-no">02</span>
         <span className="frame-stamp">extension</span>
       </div>
 
