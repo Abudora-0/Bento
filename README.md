@@ -269,8 +269,11 @@ npm run dev         # development build with hot reload
 npm run build       # production build
 npm run package     # zip for the Chrome Web Store
 npm run icon        # regenerate assets/icon.png
+npm run store-assets # regenerate the store listing artwork
 npm run typecheck
 ```
+
+`extension/STORE-LISTING.md` has the listing copy, the artwork sizes and the permission rationale written out, so submitting is filling in a form rather than inventing answers on the day.
 
 The toolbar icon is generated rather than committed as an opaque binary. `scripts/make-icon.mjs` draws it with plain arithmetic and writes the PNG itself, zlib deflate and CRC32 by hand, so a change to the mark is a readable diff.
 

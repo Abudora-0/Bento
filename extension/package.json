@@ -10,6 +10,7 @@
     "build": "plasmo build",
     "package": "plasmo package",
     "icon": "node scripts/make-icon.mjs",
+    "store-assets": "node scripts/make-store-assets.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
