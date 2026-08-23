@@ -1028,6 +1028,54 @@
   animation: grease-draw 520ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/*
+   Touch targets.
+   ---------------------------------------------------------------------------
+   The design is deliberately tight: small type, close spacing, a darkroom
+   rather than a dashboard. That is right with a mouse and wrong with a thumb,
+   where a 34px field is a miss waiting to happen.
+
+   Scoped to pointer: coarse so it grows the targets on a phone and leaves the
+   desktop layout exactly as drawn, rather than loosening the whole design to
+   suit one input device.
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  .field {
+    padding-top: 11px;
+    padding-bottom: 11px;
+    /* 16px stops iOS zooming the page in when a field takes focus. */
+    font-size: 16px;
+  }
+
+  .shutter,
+  .ghost-btn,
+  .segmented button {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .check {
+    width: 18px;
+    height: 18px;
+  }
+
+  .check:checked::after {
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+  }
+
+  .select-option {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .field-action {
+    padding-inline: 14px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

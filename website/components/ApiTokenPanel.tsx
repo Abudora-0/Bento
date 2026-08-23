@@ -56,7 +56,13 @@ export function ApiTokenPanel({ initialToken }: { initialToken: string }) {
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 overflow-x-auto bg-gutter px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] text-print shadow-[inset_0_0_0_1px_var(--line-field)]">
+        {/*
+          Wraps rather than scrolling. A 48 character token in a narrow column
+          used to overflow its box and get clipped, so on a phone you could
+          copy it but never actually read it. Two lines of mono is fine, and
+          break-all is needed because a hex string has nowhere to break.
+        */}
+        <code className="min-w-0 flex-1 break-all bg-gutter px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] leading-relaxed text-print shadow-[inset_0_0_0_1px_var(--line-field)]">
           {token}
         </code>
 
