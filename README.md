@@ -28,6 +28,10 @@ Sign up, and everything you save is yours. Bookmarks, folders and tags are scope
 
 *The sheet. Every capture is a numbered frame with its screenshot, host, tags and date, and a grease pencil circle on the ones worth keeping.*
 
+![The Bento landing page, from the hero down to the film tail footer](docs/landing.png)
+
+*The front page, which is what the live deployment opens on.*
+
 ![The Bento lock screen: a bento lid split down the middle, sign in on the left, a contact sheet printed on the right](docs/lock.png)
 
 *The lock. Two lid halves with the sheet printed on the inside, which part when you get in.*
