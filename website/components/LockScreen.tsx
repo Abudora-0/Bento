@@ -27,14 +27,16 @@ const OPEN_MS = 1100
 export function LockScreen({
   next,
   idled,
-  inviteRequired
+  inviteRequired,
+  startOnSignUp = false
 }: {
   next: string
   idled: boolean
   inviteRequired: boolean
+  startOnSignUp?: boolean
 }) {
   const router = useRouter()
-  const [mode, setMode] = useState<Mode>("in")
+  const [mode, setMode] = useState<Mode>(startOnSignUp ? "up" : "in")
   const [phase, setPhase] = useState<Phase>("closed")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()

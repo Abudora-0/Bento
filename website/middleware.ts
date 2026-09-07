@@ -5,6 +5,16 @@ import { SESSION_COOKIE, issueSession, readSession, sessionCookieOptions } from 
 export const LOCK_PATH = "/lock"
 
 /**
+ * Routes anyone can see, signed in or not.
+ *
+ * The landing page is public because the deployed url has to explain itself.
+ * Before it existed, a stranger who opened the site was met by "Closed,
+ * everything you saved is behind this", which says nothing about what Bento is
+ * and is addressed to somebody who already has an account.
+ */
+const PUBLIC_PATHS = new Set(["/", LOCK_PATH])
+
+/**
  * The gate in front of every page.
  *
  * Api routes are not covered by the matcher below: they are the extension's,
@@ -17,9 +27,13 @@ export async function middleware(request: NextRequest) {
 
   const session = await readSession(request.cookies.get(SESSION_COOKIE)?.value)
 
-  // The lock screen has to be reachable while locked, or it would redirect to
-  // itself forever. Anyone who is already in gets bounced off it instead.
-  if (pathname === LOCK_PATH) {
+  /*
+   * The public routes have to stay reachable while locked, or the lock screen
+   * would redirect to itself forever. Anyone already signed in gets sent on to
+   * their sheet instead, so neither the door nor the sales pitch is something
+   * you have to walk past twice.
+   */
+  if (PUBLIC_PATHS.has(pathname)) {
     if (session.valid) return NextResponse.redirect(new URL("/app", request.url))
     return NextResponse.next()
   }

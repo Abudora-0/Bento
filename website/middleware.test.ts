@@ -53,10 +53,13 @@ describe("middleware, locked", () => {
     assert.equal(location?.searchParams.get("next"), "/app?tag=react&page=3")
   })
 
-  it("does not carry a bare slash as a destination, that is just the default", async () => {
-    const response = await middleware(request("/"))
-    assert.equal(locationOf(response)?.searchParams.has("next"), false)
-  })
+  /*
+   * There used to be a case here asserting that a redirect away from "/" did
+   * not carry next=/. It cannot happen any more: "/" is the landing page and
+   * is public, so it never redirects at all. The guard that dropped a bare
+   * slash is still in middleware.ts as cheap insurance if the public list ever
+   * changes, and the landing page suite below covers "/" properly.
+   */
 
   it("says when it locked itself, so the screen can explain", async () => {
     const stale = await issueSession(USER, { issuedAt: Date.now() - idleTimeoutMs() - 1000 })
@@ -76,6 +79,39 @@ describe("middleware, locked", () => {
 
     // A cleared cookie is set to empty with an expiry in the past.
     assert.match(response.headers.get("set-cookie") ?? "", /bento_session=;/)
+  })
+})
+
+describe("middleware, the landing page", () => {
+  it("lets a stranger see the front page rather than bouncing them to the lock", async () => {
+    /*
+     * The whole point of the landing page is that the deployed url explains
+     * itself. Gating it would put a password prompt in front of the only page
+     * that says what the site is.
+     */
+    const response = await middleware(request("/"))
+
+    assert.equal(response.headers.get("location"), null)
+    assert.notEqual(response.status, 307)
+  })
+
+  it("does not redirect to itself forever", async () => {
+    // The same hazard the lock screen has: a public path that is also gated
+    // would bounce between itself and /lock until the browser gave up.
+    const response = await middleware(request("/", "garbage"))
+    assert.equal(response.headers.get("location"), null)
+  })
+
+  it("sends somebody already signed in to their sheet instead", async () => {
+    const response = await middleware(request("/", await issueSession(USER)))
+    assert.equal(locationOf(response)?.pathname, "/app")
+  })
+
+  it("still gates everything that is not public", async () => {
+    for (const path of ["/app", "/settings", "/anything-else"]) {
+      const response = await middleware(request(path))
+      assert.equal(locationOf(response)?.pathname, "/lock", `${path} must stay gated`)
+    }
   })
 })
 
