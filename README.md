@@ -24,15 +24,21 @@ Bento is a bookmark manager built around one idea: a saved page is a photograph 
 
 Sign up, and everything you save is yours. Bookmarks, folders and tags are scoped per account at the database level rather than filtered in application code, so two people using the same deployment never see each other's sheets.
 
+![The Bento sheet: captured pages laid out as numbered frames on a contact sheet, with a folder rail, search, and tags](docs/sheet.png)
+
+*The sheet. Every capture is a numbered frame with its screenshot, host, tags and date, and a grease pencil circle on the ones worth keeping.*
+
+![The Bento lock screen: a bento lid split down the middle, sign in on the left, a contact sheet printed on the right](docs/lock.png)
+
+*The lock. Two lid halves with the sheet printed on the inside, which part when you get in.*
+
 <div align="center">
 
 ![The Bento mark and wordmark, shown as a lockup, at large size, and at favicon sizes](docs/mark.png)
 
 </div>
 
-The mark and the lettering above are not a mockup. `docs/mark.png` is generated from `website/components/Wordmark.tsx`, so it cannot drift from what the app actually renders.
-
-> **Screenshots of the app itself** are not in the repo yet. Drop them into `docs/` and link them here when you have them, rather than putting a mockup in their place.
+These are real captures of the running app, not mockups. `docs/mark.png` is generated from `website/components/Wordmark.tsx`, so the logo shown here cannot drift from the one the app renders.
 
 ## Try it
 

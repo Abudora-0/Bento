@@ -47,3 +47,7 @@ website/data/
 
 # Local editor and tooling config
 .claude/
+
+# Page captures used to make the dev sheet look like a real roll for the
+# readme screenshots. Local scaffolding, not part of the project.
+website/public/dev-shots/
