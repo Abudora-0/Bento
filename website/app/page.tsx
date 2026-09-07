@@ -3,7 +3,7 @@ import Link from "next/link"
 
 import { GetExtension } from "~/components/GetExtension"
 import { Letters, Mark } from "~/components/Wordmark"
-import { REPO_URL } from "~/lib/links"
+import { REPO_URL, installRoute } from "~/lib/links"
 
 /**
  * The front page.
@@ -190,11 +190,79 @@ export default function Landing() {
         </dl>
       </section>
 
-      <footer className="mt-16 flex flex-wrap items-center justify-between gap-3 border-0 pt-5 text-[10px] uppercase tracking-[0.14em] text-silver-dim shadow-[inset_0_1px_0_var(--line-frame)]">
-        <span>Bento, MIT licensed</span>
-        <a href={REPO_URL} target="_blank" rel="noreferrer" className="hover:text-print">
-          github.com/Abudora-0/Bento
-        </a>
+      {/*
+        The tail of the roll. The perforation strip bookends the one under the
+        header, and the last line is the edge printing that runs along real
+        film stock: the stock name, the roll, and the frame numbers with the
+        little arrow between them.
+      */}
+      <footer className="mt-20">
+        <div className="perf-strip" aria-hidden />
+
+        <div className="mt-7 grid gap-8 sm:grid-cols-[1.2fr_1fr_1fr]">
+          <div>
+            <span className="flex items-center gap-2.5">
+              <Mark className="h-6 w-6 shrink-0" />
+              <span className="block h-[15px] text-print">
+                <Letters animate={false} />
+              </span>
+            </span>
+
+            <p className="mt-3 max-w-[30ch] text-[10.5px] leading-relaxed text-silver-dim">
+              A contact sheet for everything you save. Self hosted, so the bookmarks stay yours.
+            </p>
+          </div>
+
+          <nav aria-label="The project">
+            <p className="label">The project</p>
+            <ul className="mt-3 space-y-2">
+              {[
+                { label: "Source", href: REPO_URL },
+                { label: "Releases", href: `${REPO_URL}/releases` },
+                { label: "Privacy", href: `${REPO_URL}#privacy` },
+                { label: "MIT licence", href: `${REPO_URL}/blob/main/LICENSE` }
+              ].map((link) => (
+                <li key={link.label}>
+                  <a href={link.href} target="_blank" rel="noreferrer" className="footer-link">
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <nav aria-label="Getting started">
+            <p className="label">Get started</p>
+            <ul className="mt-3 space-y-2">
+              <li>
+                <Link href="/lock?new=1" className="footer-link">
+                  Create an account
+                </Link>
+              </li>
+              <li>
+                <Link href="/lock" className="footer-link">
+                  Sign in
+                </Link>
+              </li>
+              <li>
+                <a href={installRoute().href} target="_blank" rel="noreferrer" className="footer-link">
+                  {installRoute().store ? "Add the extension" : "Download the extension"}
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+        <div className="mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 pt-4 shadow-[inset_0_1px_0_var(--line-frame)]">
+          <span className="frame-stamp">Bento 400, roll 01, MIT</span>
+          <span className="flex items-center gap-2 frame-stamp" aria-hidden>
+            <span>24</span>
+            <span className="text-grease">&#9656;</span>
+            <span>24A</span>
+            <span className="text-grease">&#9656;</span>
+            <span>25</span>
+          </span>
+        </div>
       </footer>
     </main>
   )

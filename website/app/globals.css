@@ -729,6 +729,38 @@
     cursor: not-allowed;
   }
 
+  /* Footer links. A grease rule slides in under one on hover, the same gesture
+     as the folder rail, rather than an underline appearing from nowhere. */
+  .footer-link {
+    position: relative;
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-silver-dim);
+    transition: color 160ms ease;
+  }
+
+  .footer-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    height: 1px;
+    background: var(--color-grease);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .footer-link:hover {
+    color: var(--color-print);
+  }
+
+  .footer-link:hover::after {
+    transform: scaleX(1);
+  }
+
   /* A bare text button, no box at all. */
   .ghost {
     font-family: var(--font-mono);
