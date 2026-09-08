@@ -288,6 +288,8 @@ node --env-file-if-exists=.env.local scripts/capture-docs.mjs http://localhost:3
 
 The first captures the pictures the landing page and the lock screen print. The second takes the screenshots in this readme, which is why it needs the database: two of them are of pages behind the lock, and it mints a session with the app's own signing rather than putting a password in a script.
 
+It photographs whichever database is configured and whichever account came first in it, so point it at a throwaway one unless you actually want your own bookmarks in the readme.
+
 Both need a Chromium on the machine, found automatically or pointed at with `EDGE_PATH`. The readme shots run against a production build rather than the dev server, because the dev overlay badge otherwise sits in the corner of every one.
 
 **Extension**
