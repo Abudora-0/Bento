@@ -1,8 +1,7 @@
-import Link from "next/link"
-
 import { CommandPalette } from "~/components/CommandPalette"
 import { IdleWatcher } from "~/components/IdleWatcher"
 import { LockButton } from "~/components/LockButton"
+import { SettingsButton } from "~/components/SettingsButton"
 import { ExposureCount, Wordmark } from "~/components/Wordmark"
 import { requireUser } from "~/lib/current-user"
 import { countBookmarks } from "~/lib/db/bookmarks"
@@ -30,15 +29,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="flex items-center justify-between gap-4">
         <Wordmark href="/app" />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ExposureCount count={count} />
-          <Link
-            href="/settings"
-            className="ghost max-w-[9rem] truncate"
+
+          {/*
+            A label now, not the navigation. It used to be the only way to
+            Settings, which nobody would guess from a name in dim silver.
+            Hidden on the narrowest screens so the two real controls beside it
+            keep their room.
+          */}
+          <span
+            className="ghost hidden max-w-[9rem] truncate sm:inline"
             title={`Signed in as ${user.username}`}
           >
             {user.username}
-          </Link>
+          </span>
+
+          <SettingsButton />
           <LockButton />
         </div>
       </header>
