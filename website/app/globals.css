@@ -355,6 +355,54 @@
     filter: grayscale(0.1) contrast(1.06) brightness(1.06);
   }
 
+  /*
+     A tall frame with no capture.
+     ------------------------------------------------------------------------
+     Unexposed stock with the site's own mark held in the middle of it. An
+     imported bookmark has no screenshot and never will unless you visit it
+     with the extension, and a couple of hundred of those left the sheet
+     looking like it had failed to load rather than like film waiting to be
+     exposed.
+     ------------------------------------------------------------------------ */
+  .plate-unexposed {
+    display: grid;
+    place-items: center;
+    background:
+      repeating-linear-gradient(45deg, var(--line-hatch) 0 6px, rgba(233, 229, 220, 0) 6px 12px),
+      var(--color-gutter);
+  }
+
+  .plate-mark {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    /* Held back so it reads as a watermark on the stock rather than as the
+       subject of the frame, and it brightens with the rest on hover. */
+    opacity: 0.5;
+    filter: grayscale(0.5) contrast(1.04);
+    transition: opacity 260ms ease, filter 260ms ease;
+  }
+
+  .frame-hover:hover .plate-mark {
+    opacity: 0.85;
+    filter: grayscale(0.1) contrast(1.06);
+  }
+
+  /* No favicon either, so the host's initial stands in, the same letter the
+     stamp beside the address already uses. */
+  .plate-letter {
+    font-family: var(--font-head);
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--line-focus);
+    transition: color 260ms ease;
+  }
+
+  .frame-hover:hover .plate-letter {
+    color: var(--color-silver-dim);
+  }
+
   .plate-empty {
     display: grid;
     place-items: center;

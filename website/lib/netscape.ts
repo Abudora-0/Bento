@@ -24,6 +24,15 @@ import { normalizeUrl } from "./format.ts"
  */
 export const IMPORT_CHUNK = 100
 
+/**
+ * Bookmarks per share image batch.
+ *
+ * Much smaller than a chunk of imports, because each one is an outbound
+ * request to somebody else's server with a four second timeout rather than a
+ * row to write. Lives here for the same reason IMPORT_CHUNK does.
+ */
+export const BACKFILL_BATCH = 10
+
 export type ImportedBookmark = {
   url: string
   title: string

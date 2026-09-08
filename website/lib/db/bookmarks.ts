@@ -449,3 +449,86 @@ export async function importBookmarks(userId: string, items: ImportInput[]): Pro
   const alreadyHad = existing.size
   return { added: items.length - alreadyHad, alreadyHad }
 }
+
+/** Where a backfill got to, so the next batch starts after it. */
+export type ImageCursor = { createdAt: string; id: string }
+
+/**
+ * Bookmarks with no picture yet, oldest first, after the cursor.
+ *
+ * Drives the share image backfill. Oldest first because an import lands with
+ * the browser's own dates, so this works through the history you brought in
+ * before it touches anything captured since.
+ *
+ * The cursor is what stops it looping. Plenty of pages have no share image to
+ * give, and those rows still have no screenshot afterwards, so a query that
+ * only asked for "no image" would hand back the same ones forever. Keyset on
+ * (created_at, id), the same pair the tray sorts on, so it walks past what it
+ * has already tried rather than past what it managed to fill.
+ */
+export async function bookmarksWithoutImage(
+  userId: string,
+  limit: number,
+  after: ImageCursor | null = null
+): Promise<Bookmark[]> {
+  const size = Math.max(1, Math.min(limit, 100))
+
+  const { rows } = await db().execute(
+    after
+      ? {
+          sql: `select * from bookmarks
+                where user_id = ? and (screenshot_url is null or screenshot_url = '')
+                  and (created_at > ? or (created_at = ? and id > ?))
+                order by created_at asc, id asc
+                limit ?`,
+          args: [userId, after.createdAt, after.createdAt, after.id, size]
+        }
+      : {
+          sql: `select * from bookmarks
+                where user_id = ? and (screenshot_url is null or screenshot_url = '')
+                order by created_at asc, id asc
+                limit ?`,
+          args: [userId, size]
+        }
+  )
+
+  return rows.map((r) => rowToBookmark(r as Row))
+}
+
+export async function countBookmarksWithoutImage(userId: string): Promise<number> {
+  const { rows } = await db().execute({
+    sql: `select count(*) as n from bookmarks
+          where user_id = ? and (screenshot_url is null or screenshot_url = '')`,
+    args: [userId]
+  })
+
+  return Number((rows[0] as Row).n)
+}
+
+/**
+ * Attaches share images that were found, in one round trip.
+ *
+ * Only ever fills an empty one. A real screenshot from the extension always
+ * outranks a share card, so a bookmark that has been captured since the
+ * backfill started is left exactly as it is.
+ */
+export async function setShareImages(
+  userId: string,
+  found: { id: string; imageUrl: string }[]
+): Promise<number> {
+  if (found.length === 0) return 0
+
+  const stamp = now()
+
+  await db().batch(
+    found.map((item) => ({
+      sql: `update bookmarks
+            set screenshot_url = ?, updated_at = ?
+            where id = ? and user_id = ? and (screenshot_url is null or screenshot_url = '')`,
+      args: [item.imageUrl, stamp, item.id, userId]
+    })),
+    "write"
+  )
+
+  return found.length
+}

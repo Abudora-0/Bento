@@ -2,9 +2,11 @@ import type { Metadata } from "next"
 import Link from "next/link"
 
 import { ApiTokenPanel } from "~/components/ApiTokenPanel"
+import { BackfillPanel } from "~/components/BackfillPanel"
 import { GetExtension } from "~/components/GetExtension"
 import { ImportPanel } from "~/components/ImportPanel"
 import { requireUser } from "~/lib/current-user"
+import { countBookmarksWithoutImage } from "~/lib/db/bookmarks"
 import { isoDate } from "~/lib/format"
 
 export const metadata: Metadata = { title: "Settings" }
@@ -12,6 +14,7 @@ export const dynamic = "force-dynamic"
 
 export default async function SettingsPage() {
   const user = await requireUser()
+  const missingImages = await countBookmarksWithoutImage(user.id)
 
   return (
     <div className="mt-6 max-w-2xl">
@@ -42,6 +45,7 @@ export default async function SettingsPage() {
         <GetExtension />
         <ApiTokenPanel initialToken={user.api_token} />
         <ImportPanel />
+        <BackfillPanel missing={missingImages} />
       </div>
 
       <div className="mt-6">

@@ -78,6 +78,7 @@ The build is plain Chromium MV3, so it loads in Chrome, Edge, Brave, Arc, Vivald
 - **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
 - **Add by hand** for pages the extension cannot reach, with a server side favicon lookup
+- **Import from your browser**, one HTML export from Chrome, Brave, Edge, Firefox or Safari, folders and all
 - **Merge on re-capture**, so saving the same page twice unions its tags instead of duplicating it
 
 **The sheet**
@@ -315,6 +316,8 @@ Bento has no servers of its own. Every deployment belongs to whoever set it up, 
 **The site** stores your email, a username, a PBKDF2 hash of your password, and your bookmarks. Screenshots go to whichever blob store the deployment is configured with. Nothing is sent to any third party, there is no analytics, and there are no cookies beyond the one signed session cookie the lock needs.
 
 **Favicons are fetched by the server**, not your browser, when you add a bookmark by hand. That request goes to the site you bookmarked. It is guarded against pointing at private network addresses, see `lib/ssrf-guard.ts`.
+
+**The share image backfill** is the same shape, and opt in. If you ask it to, the server visits each bookmark you have no picture for and reads the `og:image` the page offers. It stores that image's address, not the image, so your browser loads it from wherever it lives when you look at the sheet. That means the sites you bookmarked can see a request when you view your own sheet, which is already true of favicons. Nothing is sent to any third party that you did not bookmark yourself.
 
 If you use someone else's deployment, all of the above is true of them rather than of this project, and they can read the database. Run your own if that matters to you.
 

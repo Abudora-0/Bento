@@ -6,9 +6,9 @@ import { deleteScreenshot } from "~/lib/blob"
 import { requireUser } from "~/lib/current-user"
 import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
-import { discoverFaviconUrl } from "~/lib/favicon"
+import { discoverFaviconUrl, discoverShareImageUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
-import { IMPORT_CHUNK, type ImportedBookmark } from "~/lib/netscape"
+import { BACKFILL_BATCH, IMPORT_CHUNK, type ImportedBookmark } from "~/lib/netscape"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -274,5 +274,61 @@ export async function importChunk(items: ImportedBookmark[]): Promise<ImportResu
     return { ok: true, ...outcome }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Could not save those." }
+  }
+}
+
+export type BackfillResult =
+  | { ok: true; looked: number; found: number; nextCursor: bookmarks.ImageCursor | null }
+  | { ok: false; error: string }
+
+/**
+ * Finds share images for bookmarks that have no picture.
+ *
+ * One batch per call, driven from the client, for the same reason the import
+ * is chunked: each of these is an outbound request to somebody else's server,
+ * and a couple of hundred in one invocation would sit well past any sensible
+ * function timeout.
+ *
+ * The lookups run together rather than one after another. They are almost
+ * entirely waiting on the network, and a batch of ten sequential four second
+ * timeouts would be forty seconds of nothing.
+ */
+export async function backfillShareImages(
+  after: bookmarks.ImageCursor | null = null
+): Promise<BackfillResult> {
+  const user = await requireUser()
+
+  try {
+    const batch = await bookmarks.bookmarksWithoutImage(user.id, BACKFILL_BATCH, after)
+    if (batch.length === 0) return { ok: true, looked: 0, found: 0, nextCursor: null }
+
+    const results = await Promise.all(
+      batch.map(async (bookmark) => {
+        const imageUrl = await discoverShareImageUrl(bookmark.url).catch(() => null)
+        return imageUrl ? { id: bookmark.id, imageUrl } : null
+      })
+    )
+
+    const found = results.filter((r): r is { id: string; imageUrl: string } => r !== null)
+    await bookmarks.setShareImages(user.id, found)
+
+    /*
+     * The cursor is the last row looked at, not the last one filled. Plenty of
+     * pages have no share image, and without this those rows would come back
+     * on every call and the loop would never end. Found that by running it:
+     * four bookmarks with no image turned into three hundred and forty four
+     * lookups before it was stopped by hand.
+     */
+    const last = batch[batch.length - 1]
+
+    revalidatePath("/app")
+    return {
+      ok: true,
+      looked: batch.length,
+      found: found.length,
+      nextCursor: { createdAt: last.created_at, id: last.id }
+    }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not look those up." }
   }
 }

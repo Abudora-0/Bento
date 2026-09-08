@@ -63,7 +63,10 @@ export function BookmarkCell({
 
   const host = hostnameOf(bookmark.url)
   const title = bookmark.title?.trim() || host
-  const showPlate = tall && Boolean(bookmark.screenshot_url)
+  // Tall frames always get a plate. Without a capture it shows the site's
+  // own mark on unexposed stock, which is a frame waiting to be exposed
+  // rather than a hole in the sheet.
+  const showPlate = tall
   const visibleTags = bookmark.tags.slice(0, wide ? 4 : 2)
   const hiddenTags = bookmark.tags.length - visibleTags.length
 
@@ -142,10 +145,23 @@ export function BookmarkCell({
         </div>
 
         {showPlate ? (
-          <div className="plate relative mt-2 min-h-0 flex-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={bookmark.screenshot_url as string} alt="" loading="lazy" />
-          </div>
+          bookmark.screenshot_url ? (
+            <div className="plate relative mt-2 min-h-0 flex-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={bookmark.screenshot_url} alt="" loading="lazy" />
+            </div>
+          ) : (
+            <div className="plate plate-unexposed relative mt-2 min-h-0 flex-1">
+              {bookmark.favicon_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={bookmark.favicon_url} alt="" loading="lazy" className="plate-mark" />
+              ) : (
+                <span className="plate-letter" aria-hidden>
+                  {host.replace(/^www\./, "").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+          )
         ) : null}
 
         <div className={`relative min-w-0 ${showPlate ? "mt-2" : "mt-1.5 flex-1"}`}>

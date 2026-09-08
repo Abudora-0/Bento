@@ -88,6 +88,19 @@ async function guardedFetch(url: string, method: "GET" | "HEAD", accept: string)
   return null
 }
 
+/**
+ * The first maxBytes of a response, then stop reading.
+ *
+ * Truncates rather than giving up. It used to return null the moment a page
+ * went over the cap, which quietly meant that any site with more than 200KB of
+ * html got no icon and no share image found in it at all: nextjs.org is 345KB
+ * and react.dev is not far behind, and both put everything worth reading in
+ * the head. Everything this scans for is in the head, so the first chunk is
+ * all that was ever needed.
+ *
+ * A cut in the middle of a multi byte character leaves a replacement character
+ * at the very end, which matters to nobody scanning for tags.
+ */
 async function readBounded(response: Response, maxBytes: number): Promise<string | null> {
   const reader = response.body?.getReader()
   if (!reader) return null
@@ -99,15 +112,17 @@ async function readBounded(response: Response, maxBytes: number): Promise<string
     const { done, value } = await reader.read()
     if (done) break
 
-    total += value.byteLength
-    if (total > maxBytes) {
-      await reader.cancel()
-      return null
-    }
     chunks.push(value)
+    total += value.byteLength
+
+    if (total >= maxBytes) {
+      await reader.cancel()
+      break
+    }
   }
 
-  return Buffer.concat(chunks).toString("utf8")
+  if (chunks.length === 0) return null
+  return Buffer.concat(chunks).subarray(0, maxBytes).toString("utf8")
 }
 
 /** A small, bounded scan for <link rel="icon"> style tags, not a full HTML parser. */
@@ -172,6 +187,88 @@ export async function discoverFaviconUrl(pageUrl: string): Promise<string | null
 
   for (const candidate of candidates) {
     if (await verifyImage(candidate)) return candidate
+  }
+
+  return null
+}
+
+/**
+ * The picture a page offers for sharing, its og:image.
+ *
+ * Not a screenshot, and worth being clear about the difference: a screenshot
+ * is what you were looking at, an og:image is what the site chose to show when
+ * somebody links it. Only the extension can take the first, because only it is
+ * in your browser with your session. This is the next best thing for the
+ * couple of hundred bookmarks that arrive from an import with nothing at all.
+ *
+ * Same guarded fetch as the favicon lookup above, so the same SSRF protection
+ * applies: every redirect hop is resolved and checked before it is followed.
+ *
+ * The image is not verified with a second request. A site that publishes an
+ * og:image almost always serves it, and checking would double the number of
+ * outbound requests a backfill makes for very little. A dead one degrades to
+ * the unexposed plate, which is where it started.
+ */
+export async function discoverShareImageUrl(pageUrl: string): Promise<string | null> {
+  let page: URL
+  try {
+    page = new URL(pageUrl)
+  } catch {
+    return null
+  }
+
+  const response = await guardedFetch(page.toString(), "GET", "text/html")
+  if (!response?.ok) return null
+
+  const html = await readBounded(response, MAX_HTML_BYTES)
+  if (!html) return null
+
+  return extractShareImage(html, page)
+}
+
+/**
+ * A bounded scan for the share image, in the order worth preferring.
+ *
+ * og:image is the standard one. twitter:image is the common fallback, and a
+ * few sites still only set that.
+ */
+function extractShareImage(html: string, base: URL): string | null {
+  const wanted = ["og:image:secure_url", "og:image:url", "og:image", "twitter:image", "twitter:image:src"]
+
+  const found = new Map<string, string>()
+
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0]
+
+    const key =
+      /\bproperty\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1] ??
+      /\bname\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1]
+    if (!key) continue
+
+    const normalised = key.trim().toLowerCase()
+    if (!wanted.includes(normalised) || found.has(normalised)) continue
+
+    const content = /\bcontent\s*=\s*["']([^"']*)["']/i.exec(tag)?.[1]?.trim()
+    if (content) found.set(normalised, content)
+  }
+
+  for (const key of wanted) {
+    const raw = found.get(key)
+    if (!raw) continue
+
+    let resolved: URL
+    try {
+      resolved = new URL(raw, base)
+    } catch {
+      continue
+    }
+
+    // Only a real remote image. A data uri here would be stored and served to
+    // every viewer of the sheet, and anything else is not an image at all.
+    if (resolved.protocol !== "http:" && resolved.protocol !== "https:") continue
+    if (resolved.toString().length > 2000) continue
+
+    return resolved.toString()
   }
 
   return null

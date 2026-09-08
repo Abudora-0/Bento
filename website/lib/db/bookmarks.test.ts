@@ -16,7 +16,9 @@ const {
   bulkSetStarred,
   bulkSetFolder,
   bulkDelete,
-  importBookmarks
+  importBookmarks,
+  bookmarksWithoutImage,
+  setShareImages
 } = await import("./bookmarks.ts")
 const { createFolder, listFolders, renameFolder, deleteFolder } = await import("./folders.ts")
 
@@ -496,5 +498,86 @@ describe("importBookmarks", () => {
     assert.equal(bobTray.total, 1)
     assert.equal(aliceTray.rows[0].title, "Alice")
     assert.equal(bobTray.rows[0].title, "Bob")
+  })
+})
+
+describe("the share image backfill", () => {
+  it("walks forward past rows it could not fill, rather than looping on them", async () => {
+    /*
+     * The bug this exists for: the query used to ask only for "no image", so a
+     * page with no share image to give came back on every call and the client
+     * looped forever. Four bookmarks turned into three hundred and forty four
+     * lookups before it was stopped by hand. The cursor is on what was looked
+     * at, not on what was filled.
+     */
+    const carol = await makeUser("backfill@example.com")
+
+    for (const n of [1, 2, 3, 4, 5]) {
+      await importBookmarks(carol.id, [
+        {
+          url: `https://backfill.example.com/${n}`,
+          title: `Page ${n}`,
+          faviconUrl: null,
+          folderId: null,
+          addedAt: new Date(Date.UTC(2020, 0, n)).toISOString()
+        }
+      ])
+    }
+
+    const seen: string[] = []
+    let cursor: { createdAt: string; id: string } | null = null
+
+    for (let round = 0; round < 10; round++) {
+      const batch: Awaited<ReturnType<typeof bookmarksWithoutImage>> = await bookmarksWithoutImage(
+        carol.id,
+        2,
+        cursor
+      )
+      if (batch.length === 0) break
+
+      // Nothing is filled in, which is exactly the case that used to loop.
+      seen.push(...batch.map((b) => b.url))
+      const last = batch[batch.length - 1]
+      cursor = { createdAt: last.created_at, id: last.id }
+    }
+
+    assert.equal(seen.length, 5, "every row is looked at exactly once")
+    assert.equal(new Set(seen).size, 5, "and none of them twice")
+  })
+
+  it("only fills an image in when there is not one already", async () => {
+    // A real capture from the extension always beats a share card, so a
+    // backfill that lands after one must not overwrite it.
+    const dave = await makeUser("shareimage@example.com")
+
+    const captured = await upsertByUrl(dave.id, {
+      ...base,
+      url: "https://shot.example.com/has",
+      screenshotUrl: "https://blob.example.com/real-capture.jpg"
+    })
+    const empty = await upsertByUrl(dave.id, { ...base, url: "https://shot.example.com/none" })
+
+    await setShareImages(dave.id, [
+      { id: captured.bookmark.id, imageUrl: "https://og.example.com/card.png" },
+      { id: empty.bookmark.id, imageUrl: "https://og.example.com/other.png" }
+    ])
+
+    assert.equal(
+      (await getBookmark(dave.id, captured.bookmark.id))?.screenshot_url,
+      "https://blob.example.com/real-capture.jpg",
+      "a real capture must survive"
+    )
+    assert.equal(
+      (await getBookmark(dave.id, empty.bookmark.id))?.screenshot_url,
+      "https://og.example.com/other.png"
+    )
+  })
+
+  it("cannot set an image on another account's bookmark", async () => {
+    const mine = await upsertByUrl(alice.id, { ...base, url: "https://shot.example.com/mine" })
+
+    await setShareImages(bob.id, [{ id: mine.bookmark.id, imageUrl: "https://og.example.com/theirs.png" }])
+
+    assert.equal((await getBookmark(alice.id, mine.bookmark.id))?.screenshot_url, null)
   })
 })
