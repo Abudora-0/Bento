@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.svg" alt="Bento" width="300">
+
 # Bento
 
 **A contact sheet for everything you save.**
@@ -12,7 +14,7 @@ A self hosted bookmark manager in two pieces: a browser extension that captures 
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-4ff8d2.svg?logo=turso&logoColor=black)](https://turso.tech)
 [![Plasmo MV3](https://img.shields.io/badge/Plasmo-MV3-cc352c.svg)](https://www.plasmo.com)
-[![Tests](https://img.shields.io/badge/tests-202%20passing-78965a.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-passing-78965a.svg)](#testing)
 
 </div>
 
@@ -26,7 +28,7 @@ Sign up, and everything you save is yours. Bookmarks, folders and tags are scope
 
 ![The Bento sheet: captured pages laid out as numbered frames on a contact sheet, with a folder rail, search, and tags](docs/sheet.png)
 
-*The sheet. Every capture is a numbered frame with its screenshot, host, tags and date, and a grease pencil circle on the ones worth keeping.*
+*The sheet. Every capture fills its frame, with the title, folder and date over it, and a grease pencil circle on the ones worth keeping.*
 
 ![The Bento landing page, from the hero down to the film tail footer](docs/landing.png)
 
@@ -36,13 +38,11 @@ Sign up, and everything you save is yours. Bookmarks, folders and tags are scope
 
 *The lock. Two lid halves with the sheet printed on the inside, which part when you get in.*
 
-<div align="center">
+![The sheet in arrange mode, with a size control on every frame](docs/arrange.png)
 
-![The Bento mark and wordmark, shown as a lockup, at large size, and at favicon sizes](docs/mark.png)
+*Arranging it. Drag a frame anywhere, or set its size by hand, and the sheet stays that way.*
 
-</div>
-
-These are real captures of the running app, not mockups. `docs/mark.png` is generated from `website/components/Wordmark.tsx`, so the logo shown here cannot drift from the one the app renders.
+These are real captures of the running app, not mockups. `website/scripts/capture-docs.mjs` takes them, so they can be retaken rather than going stale the next time the design moves.
 
 ## Try it
 
@@ -75,7 +75,7 @@ The build is plain Chromium MV3, so it loads in Chrome, Edge, Brave, Arc, Vivald
 
 **Capturing**
 
-- **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
+- **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page, and the popup closes itself once the frame is exposed
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
 - **Add by hand** for pages the extension cannot reach, with a server side favicon lookup and a picture you can attach yourself
 - **Import from your browser**, one HTML export from Chrome, Brave, Edge, Firefox or Safari, folders and all
@@ -84,6 +84,8 @@ The build is plain Chromium MV3, so it loads in Chrome, Edge, Brave, Arc, Vivald
 **The sheet**
 
 - **Bento grid layout**, frames in nine varying sizes rather than a uniform card wall
+- **Arrange it yourself**, drag frames where you want them and set any frame's size by hand, saved to your account rather than to the browser
+- **Four layouts**, so the same roll can be a contact sheet, a uniform grid, one large frame and smalls, or packed tight
 - **A loupe**, because that is what you do with a contact sheet: space blows a frame up, arrows walk the roll
 - **Command palette** on `Ctrl+K`, or `Cmd+K`, to jump to a folder, a tag, or an action
 - **Marking up from the keyboard**, arrows to move, `x` to select, `s` to star, Enter to open
@@ -112,6 +114,10 @@ Two surfaces, one design language: a darkroom contact print.
 | **Type** | Oswald for structure, IBM Plex Mono for everything else |
 
 Every border is a one pixel inset hairline, never a drop shadow. Nothing has a border radius. Depth is expressed only by stepping a fixed alpha ladder, so a hover and a focus differ by a rung rather than by a new colour. Screenshots are desaturated so they read as prints, and brighten when you hover a frame, like holding a negative up to the light.
+
+A frame *is* the photograph, so the capture fills it and the title, folder and date sit over a gradient rather than underneath in a caption block. That is what gets a picture into the short compartments, which are 112px tall and had no room for an image and two lines of text one after the other.
+
+The grid packs densely, which lets a later small frame backfill the hole a taller earlier one left. That comes off the moment you arrange the sheet by hand: dense packing means the browser may put a frame somewhere other than where you dropped it, so what gets saved would not be what you see.
 
 **Nothing on the page is a browser default.** Checkboxes, dropdowns and scrollbars are all drawn from scratch, because each of them ships with rounded corners and its own highlight colour, and one native control is enough to make a design look like a template someone forgot to finish. The dropdown in particular is a real listbox rather than a styled `<select>`: setting `appearance: none` fixes the closed state and nothing else, since the popup list belongs to the operating system.
 
@@ -155,11 +161,11 @@ It locks again in three ways:
 
 > **What this does not do.** It protects the interfaces, not the bytes. Anyone holding `TURSO_AUTH_TOKEN` can read the whole database directly, past every account boundary in it. This is a self hosted app for a small number of people who already trust whoever runs it, and it is not multi tenant in the sense a commercial product would mean.
 
-Signup is open by default, which is what a portfolio piece wants. Setting `BENTO_INVITE_CODE` makes the form ask for that code, which closes a public deployment without taking signup down.
+Signup is open by default. Setting `BENTO_INVITE_CODE` makes the form ask for that code, which closes a public deployment without taking signup down.
 
 ## Setup
 
-Node 20 or newer, and a free Turso account.
+Node 22.5 or newer, and a free Turso account. The tests rely on Node's type stripping, so an older one cannot run them.
 
 ### 1. The database
 
@@ -201,17 +207,15 @@ It runs at http://localhost:3000. The first thing it shows is the lock screen, w
 
 ### 3. The extension
 
+Only if you want to work on it. To simply use it, take the zip from [Releases](https://github.com/Abudora-0/Bento/releases/latest) and follow [Installing the extension](#installing-the-extension).
+
 ```bash
 cd extension
 npm install
 npm run dev
 ```
 
-Load it at `chrome://extensions`, switch on Developer mode, choose **Load unpacked**, and pick `extension/build/chrome-mv3-dev`. For a production bundle run `npm run build` and pick `extension/build/chrome-mv3-prod`, or `npm run package` to get the same zip that goes on a release.
-
-If you only want to *use* Bento rather than work on it, take the zip from [Releases](https://github.com/Abudora-0/Bento/releases/latest) instead. See [Installing the extension](#installing-the-extension).
-
-Open the popup. It asks for the site's address and your extension token, which is on the site under **Settings**. Copy it, paste it in, and the popup checks both fields against the real API before it saves them.
+Load `extension/build/chrome-mv3-dev` the same way, with **Load unpacked**. `npm run build` gives the production bundle in `chrome-mv3-prod`, and `npm run package` gives the same zip that goes on a release.
 
 ## Using it
 
@@ -221,6 +225,7 @@ Open the popup. It asks for the site's address and your extension token, which i
 - **Star**: the grease pencil circle, in either surface
 - **Look closely**: press space, or click a frame number, to put a loupe over the capture
 - **Filter**: click a tag, pick a folder, or narrow to marked only
+- **Arrange**: switch the order to My arrangement, then drag frames about or use the size button on each one. Dragging is only offered there, because under any other order the server would sort your arrangement away on the next load
 - **Mark up a batch**: shift click frames, or press `x` on each, then use the bar that appears
 - **Lock**: the Lock button in the header, or `Ctrl+K` then Lock
 - **Pair another browser**: Settings has your extension token, and a Regenerate button for cutting an old one off
@@ -241,6 +246,7 @@ The sheet is meant to be marked up without reaching for the mouse.
 | `Enter` | Open the page in a new tab |
 | `s` | Star, or unstar |
 | `x` | Add the frame to the selection |
+| `Ctrl` + `Arrows` | Move the frame under the cursor, on My arrangement |
 | `Escape` | Clear the selection, close the loupe or the palette |
 
 Shortcuts stand down while you are typing in a field, and while the loupe or the palette is open.
@@ -252,7 +258,7 @@ cd website
 npm test
 ```
 
-202 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
+255 tests, using `node:test` with Node's type stripping, so there is no test framework and no extra dependency. They cover password hashing and verification, account creation and sign in, username rules, the rate limiter, the session token and the lock middleware, URL normalisation, the SSRF guard, paging maths, query building, the mirrored type check, the merge and screenshot replacement rules, the layout cycles, the ordering a hand made arrangement saves, and every API route end to end. One suite exists purely to attempt cross account access through every entry point and confirm each one refuses.
 
 The database tests run against real in-memory libSQL rather than a mock, because what is worth checking is what only the engine knows: that `json_each` finds a tag, that the unique index on url makes a recapture merge, that deleting a folder unfiles its bookmarks. A mock would agree with whatever the code believed.
 
@@ -273,12 +279,23 @@ npm run typecheck   # tsc --noEmit
 npm run lint
 ```
 
+Two more write assets that are committed, so they exist to be re-run rather than to be run once:
+
+```bash
+node scripts/capture-sheet.mjs
+node --env-file-if-exists=.env.local scripts/capture-docs.mjs http://localhost:3100
+```
+
+The first captures the pictures the landing page and the lock screen print. The second takes the screenshots in this readme, which is why it needs the database: two of them are of pages behind the lock, and it mints a session with the app's own signing rather than putting a password in a script.
+
+Both need a Chromium on the machine, found automatically or pointed at with `EDGE_PATH`. The readme shots run against a production build rather than the dev server, because the dev overlay badge otherwise sits in the corner of every one.
+
 **Extension**
 
 ```bash
 npm run dev         # development build with hot reload
 npm run build       # production build
-npm run package     # zip for the Chrome Web Store
+npm run package     # the zip that goes on a release
 npm run icon        # regenerate assets/icon.png
 npm run store-assets # regenerate the store listing artwork
 npm run typecheck
@@ -289,6 +306,12 @@ npm run typecheck
 The toolbar icon is generated rather than committed as an opaque binary. `scripts/make-icon.mjs` draws it with plain arithmetic and writes the PNG itself, zlib deflate and CRC32 by hand, so a change to the mark is a readable diff.
 
 **Migrations are written by hand when they have to be.** `db:push` is `CREATE IF NOT EXISTS`, which means it can add a table and can never alter one, so adding a column to a database that already has rows needs either `db:reset`, which throws the rows away, or a script. `website/scripts/migrate-add-username.mjs` is the worked example: it adds the column nullable, because SQLite cannot add a `NOT NULL` column to a populated table without a default and a shared default would collide with the unique index, then backfills it, then creates the index. It is safe to run twice.
+
+`website/scripts/migrate-add-layout.mjs` is the other one, adding the two columns a hand made arrangement needs. Run it once against a database that predates them:
+
+```bash
+cd website && node --env-file-if-exists=.env.local scripts/migrate-add-layout.mjs
+```
 
 ## Deploying
 
