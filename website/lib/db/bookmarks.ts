@@ -532,3 +532,31 @@ export async function setShareImages(
 
   return found.length
 }
+
+/**
+ * Points a bookmark at a picture, or clears it, and reports what was there.
+ *
+ * Returns the url it replaced so the caller can delete that blob. The database
+ * layer never touches storage itself, the same split deleteBookmark uses:
+ * this reports, actions.ts cleans up.
+ */
+export async function setScreenshot(
+  userId: string,
+  id: string,
+  screenshotUrl: string | null
+): Promise<string | null> {
+  const { rows } = await db().execute({
+    sql: "select screenshot_url from bookmarks where id = ? and user_id = ?",
+    args: [id, userId]
+  })
+  if (rows.length === 0) return null
+
+  const previous = nullableText((rows[0] as Row).screenshot_url)
+
+  await db().execute({
+    sql: "update bookmarks set screenshot_url = ?, updated_at = ? where id = ? and user_id = ?",
+    args: [screenshotUrl, now(), id, userId]
+  })
+
+  return previous && previous !== screenshotUrl ? previous : null
+}

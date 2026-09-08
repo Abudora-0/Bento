@@ -77,7 +77,7 @@ The build is plain Chromium MV3, so it loads in Chrome, Edge, Brave, Arc, Vivald
 
 - **One click capture** from the toolbar: title, URL, favicon, and a screenshot of the visible page
 - **Quick capture** on `Ctrl+Shift+S`, no popup, badge flashes to confirm
-- **Add by hand** for pages the extension cannot reach, with a server side favicon lookup
+- **Add by hand** for pages the extension cannot reach, with a server side favicon lookup and a picture you can attach yourself
 - **Import from your browser**, one HTML export from Chrome, Brave, Edge, Firefox or Safari, folders and all
 - **Merge on re-capture**, so saving the same page twice unions its tags instead of duplicating it
 

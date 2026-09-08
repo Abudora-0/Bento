@@ -16,21 +16,50 @@ import { del, put } from "@vercel/blob"
 
 const MAX_BYTES = 3 * 1024 * 1024
 
+/*
+ * What may be stored and served back.
+ *
+ * The extension always sends a jpeg, but a picture attached by hand is
+ * whatever the person had, so the type has to be read rather than assumed.
+ * An allowlist rather than "anything starting with image/", because the value
+ * is handed straight to the blob store as the content type it will serve
+ * with, and svg in particular can carry script.
+ */
+const ALLOWED = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+  ["image/gif", "gif"]
+])
+
 export type SaveResult = { ok: true; url: string } | { ok: false; error: string }
 
 export async function saveScreenshot(file: File): Promise<SaveResult> {
   if (file.size > MAX_BYTES) return { ok: false, error: "Screenshot is too large." }
 
+  const type = (file.type || "image/jpeg").toLowerCase()
+  const extension = ALLOWED.get(type)
+  if (!extension) {
+    return { ok: false, error: "That has to be a JPEG, PNG, WebP or GIF." }
+  }
+
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    // Local work without a blob store attached. The capture still succeeds,
-    // it just arrives without a picture, which the frame already handles.
-    return { ok: false, error: "No blob store configured." }
+    /*
+     * No store attached. A capture from the extension shrugs this off and
+     * saves without a picture, which the frame already handles. A picture
+     * somebody attached by hand cannot, so the message has to say what to do
+     * rather than name an environment variable at them.
+     */
+    return {
+      ok: false,
+      error: "Pictures need a blob store. Attach one to this deployment, then try again."
+    }
   }
 
   try {
-    const { url } = await put(`screenshots/${crypto.randomUUID()}.jpg`, file, {
+    const { url } = await put(`screenshots/${crypto.randomUUID()}.${extension}`, file, {
       access: "public",
-      contentType: "image/jpeg",
+      contentType: type,
       // Blob appends a random suffix by default, which is what makes the url
       // unguessable. Keeping it is the whole security model here.
       addRandomSuffix: true,

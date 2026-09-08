@@ -6,6 +6,7 @@ import { createBookmark } from "~/app/(dashboard)/actions"
 import type { Folder } from "~/types/db"
 
 import { Modal, ModalHeader } from "./Modal"
+import { ScreenshotField } from "./ScreenshotField"
 import { Select, folderOptions } from "./Select"
 
 /**
@@ -98,6 +99,8 @@ export function AddBookmarkDialog({
             className="mt-2"
           />
         </div>
+
+        <ScreenshotField />
 
         <div>
           <label htmlFor="add-notes" className="label">

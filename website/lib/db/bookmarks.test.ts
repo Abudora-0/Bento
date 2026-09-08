@@ -18,7 +18,8 @@ const {
   bulkDelete,
   importBookmarks,
   bookmarksWithoutImage,
-  setShareImages
+  setShareImages,
+  setScreenshot
 } = await import("./bookmarks.ts")
 const { createFolder, listFolders, renameFolder, deleteFolder } = await import("./folders.ts")
 
@@ -579,5 +580,70 @@ describe("the share image backfill", () => {
     await setShareImages(bob.id, [{ id: mine.bookmark.id, imageUrl: "https://og.example.com/theirs.png" }])
 
     assert.equal((await getBookmark(alice.id, mine.bookmark.id))?.screenshot_url, null)
+  })
+})
+
+describe("setScreenshot", () => {
+  it("attaches a picture and reports nothing to clean up", async () => {
+    const made = await upsertByUrl(alice.id, { ...base, url: "https://pic.example.com/new" })
+
+    const replaced = await setScreenshot(alice.id, made.bookmark.id, "https://blob.example.com/a.jpg")
+
+    assert.equal(replaced, null, "there was no old blob")
+    assert.equal((await getBookmark(alice.id, made.bookmark.id))?.screenshot_url, "https://blob.example.com/a.jpg")
+  })
+
+  it("reports the old url when replacing, so the blob can be deleted", async () => {
+    // The database layer never touches storage. It says what was displaced and
+    // actions.ts does the deleting, the same split deleteBookmark uses.
+    const made = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://pic.example.com/replace",
+      screenshotUrl: "https://blob.example.com/old.jpg"
+    })
+
+    const replaced = await setScreenshot(alice.id, made.bookmark.id, "https://blob.example.com/new.jpg")
+
+    assert.equal(replaced, "https://blob.example.com/old.jpg")
+    assert.equal((await getBookmark(alice.id, made.bookmark.id))?.screenshot_url, "https://blob.example.com/new.jpg")
+  })
+
+  it("clears one, and reports the url that was there", async () => {
+    const made = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://pic.example.com/clear",
+      screenshotUrl: "https://blob.example.com/gone.jpg"
+    })
+
+    const replaced = await setScreenshot(alice.id, made.bookmark.id, null)
+
+    assert.equal(replaced, "https://blob.example.com/gone.jpg")
+    assert.equal((await getBookmark(alice.id, made.bookmark.id))?.screenshot_url, null)
+  })
+
+  it("does not report the same url as needing deletion", async () => {
+    // Saving the edit form without touching the picture must not delete the
+    // blob the bookmark is still pointing at.
+    const made = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://pic.example.com/same",
+      screenshotUrl: "https://blob.example.com/keep.jpg"
+    })
+
+    assert.equal(await setScreenshot(alice.id, made.bookmark.id, "https://blob.example.com/keep.jpg"), null)
+  })
+
+  it("cannot touch another account's bookmark", async () => {
+    const mine = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://pic.example.com/mine",
+      screenshotUrl: "https://blob.example.com/mine.jpg"
+    })
+
+    assert.equal(await setScreenshot(bob.id, mine.bookmark.id, null), null)
+    assert.equal(
+      (await getBookmark(alice.id, mine.bookmark.id))?.screenshot_url,
+      "https://blob.example.com/mine.jpg"
+    )
   })
 })

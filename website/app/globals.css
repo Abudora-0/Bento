@@ -372,10 +372,15 @@
       var(--color-gutter);
   }
 
-  .plate-mark {
-    width: 34px;
-    height: 34px;
+  /* Selector has to out weigh `.plate img` above, which is (0,1,1) and would
+     otherwise stretch a 16px favicon across the whole plate with object-fit
+     cover. That is exactly what it did: a wall of blurry upscaled logos. */
+  .plate img.plate-mark {
+    width: 38px;
+    height: 38px;
     object-fit: contain;
+    /* Small source art, so keep the browser from smoothing it into mush. */
+    image-rendering: -webkit-optimize-contrast;
     /* Held back so it reads as a watermark on the stock rather than as the
        subject of the frame, and it brightens with the rest on hover. */
     opacity: 0.5;
@@ -383,7 +388,7 @@
     transition: opacity 260ms ease, filter 260ms ease;
   }
 
-  .frame-hover:hover .plate-mark {
+  .frame-hover:hover .plate img.plate-mark {
     opacity: 0.85;
     filter: grayscale(0.1) contrast(1.06);
   }

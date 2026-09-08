@@ -7,6 +7,7 @@ import { hostnameOf, isoDate, prettyPath } from "~/lib/format"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
 
 import { Modal, ModalHeader } from "./Modal"
+import { ScreenshotField } from "./ScreenshotField"
 import { Select, folderOptions } from "./Select"
 
 export function BookmarkEditor({
@@ -105,6 +106,8 @@ export function BookmarkEditor({
             className="mt-2"
           />
         </div>
+
+        <ScreenshotField existing={bookmark.screenshot_url} />
 
         <div>
           <label htmlFor="notes" className="label">

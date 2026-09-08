@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 
-import { deleteScreenshot } from "~/lib/blob"
+import { deleteScreenshot, saveScreenshot } from "~/lib/blob"
 import { requireUser } from "~/lib/current-user"
 import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
@@ -39,6 +39,26 @@ function folderIdFrom(formData: FormData): string | null {
  * Re-saving an address you already have merges into that row rather than
  * making a second copy, the same rule the extension follows.
  */
+/**
+ * An attached picture, uploaded, or nothing when none was attached.
+ *
+ * A missing blob store is a hard failure here, unlike a capture from the
+ * extension where losing the picture is better than losing the bookmark. Here
+ * the picture is the thing somebody deliberately chose, so silently dropping
+ * it would be worse than saying it did not work.
+ */
+async function pictureFrom(
+  formData: FormData
+): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
+  const file = formData.get("screenshot")
+  if (!(file instanceof File) || file.size === 0) return { ok: true, url: null }
+
+  const saved = await saveScreenshot(file)
+  if (!saved.ok) return { ok: false, error: saved.error }
+
+  return { ok: true, url: saved.url }
+}
+
 export async function createBookmark(formData: FormData): Promise<ActionResult> {
   try {
     const user = await requireUser()
@@ -49,16 +69,23 @@ export async function createBookmark(formData: FormData): Promise<ActionResult> 
     const typedTitle = String(formData.get("title") ?? "").trim().slice(0, 500)
 
     // Best effort, and bounded, a slow or unreachable site should not stop the
-    // bookmark from saving. Nothing reads a screenshot for a typed address
-    // though, that would need rendering the page, so those frames fall back to
-    // a lettered mark, which is by design.
+    // bookmark from saving.
     const faviconUrl = await discoverFaviconUrl(url).catch(() => null)
+
+    /*
+     * The site cannot take a screenshot of a typed address, that would need
+     * rendering the page. It can accept one you already have, though, which is
+     * the only way to give a picture to something the extension will never
+     * reach: a page behind a login, or one you grabbed yourself.
+     */
+    const picture = await pictureFrom(formData)
+    if (!picture.ok) return { ok: false, error: picture.error }
 
     await bookmarks.upsertByUrl(user.id, {
       url,
       title: typedTitle || hostnameOf(url),
       faviconUrl,
-      screenshotUrl: null,
+      screenshotUrl: picture.url,
       tags: parseTags(String(formData.get("tags") ?? "")),
       notes: String(formData.get("notes") ?? "").slice(0, 10000).trim(),
       folderId: folderIdFrom(formData)
@@ -86,6 +113,24 @@ export async function updateBookmark(formData: FormData): Promise<ActionResult> 
     })
 
     if (!updated) return { ok: false, error: "That bookmark no longer exists." }
+
+    /*
+     * The picture is handled after the edit rather than inside it, because
+     * replacing one means the old blob has to go and the database layer is
+     * deliberately free of any storage concern. Same split as deleteBookmark.
+     */
+    if (formData.get("removeScreenshot") === "1") {
+      const cleared = await bookmarks.setScreenshot(user.id, id, null)
+      await deleteScreenshot(cleared)
+    } else {
+      const picture = await pictureFrom(formData)
+      if (!picture.ok) return { ok: false, error: picture.error }
+
+      if (picture.url) {
+        const replaced = await bookmarks.setScreenshot(user.id, id, picture.url)
+        await deleteScreenshot(replaced)
+      }
+    }
 
     refresh()
     return { ok: true }
