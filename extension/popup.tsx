@@ -10,6 +10,12 @@ import "./popup.css"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { listFolders, recentCaptures, saveCapture, setStarred } from "./lib/api"
+
+/** How many recent frames the popup lists. See refreshStrip. */
+const RECENT_FRAMES = 4
+
+/** Long enough to read "Frame exposed." and no longer. */
+const CLOSE_AFTER_MS = 900
 import { getActiveTab, grabScreenshot, hostnameOf, lastFolder, rememberFolder, type ActiveTab } from "./lib/capture"
 import { getConfig, setConfig, testConnection, type Config } from "./lib/config"
 import type { Bookmark, Folder } from "./lib/types"
@@ -40,6 +46,10 @@ export default function Popup() {
             setConfigState(next)
             setEditing(false)
           }}
+          // Only offered when there is something to go back to. During first
+          // time setup the form is the whole popup, and a back button there
+          // would strand you on an empty screen.
+          onBack={editing && config ? () => setEditing(false) : undefined}
         />
       ) : (
         <Darkroom config={config} onEditSettings={() => setEditing(true)} />
@@ -134,10 +144,20 @@ function Leader() {
 
 function Connect({
   initial,
-  onConnected
+  onConnected,
+  onBack
 }: {
   initial?: Config
   onConnected: (config: Config) => void
+  /**
+   * Leaves the form without connecting.
+   *
+   * There was no way out of here at all. Settings replaced the whole popup and
+   * the only exit was a connection that succeeded, so getting the token wrong
+   * left you stuck on the form until you closed the popup and opened it again.
+   * Undefined during first time setup, where there is nothing behind this.
+   */
+  onBack?: () => void
 }) {
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? "")
   const [token, setToken] = useState(initial?.token ?? "")
@@ -164,6 +184,12 @@ function Connect({
 
   return (
     <div className="pad">
+      {onBack ? (
+        <button type="button" className="back" onClick={onBack}>
+          <span aria-hidden>&#8592;</span> Back
+        </button>
+      ) : null}
+
       <h1 className="head-2">Load the film</h1>
       <p className="lede">
         Point this at your Bento site and paste your extension token. Sign in on the site, open
@@ -240,8 +266,17 @@ function Darkroom({ config, onEditSettings }: { config: Config; onEditSettings: 
 
   const previewRef = useRef<string | null>(null)
 
+  /*
+   * Four, not twelve.
+   *
+   * The popup is 398px wide and capped at 596px tall, and the thing anybody
+   * opened it for is the frame at the top waiting to be captured. Twelve
+   * recent frames under that is a long scroll of something you came here to
+   * add to rather than to read, and enough of it that it read as decoration
+   * rather than as your actual sheet.
+   */
   const refreshStrip = useCallback(async () => {
-    const { bookmarks, total: count } = await recentCaptures(config, 12)
+    const { bookmarks, total: count } = await recentCaptures(config, RECENT_FRAMES)
     setRecent(bookmarks)
     setTotal(count)
   }, [config])
@@ -302,7 +337,7 @@ function Darkroom({ config, onEditSettings }: { config: Config; onEditSettings: 
     })
 
     if (result.ok) {
-      setSaved(result.updated ? "Frame updated on the sheet." : "Frame exposed.")
+      setSaved(result.updated ? "Frame updated." : "Frame exposed.")
       setTags("")
       setNotes("")
 
@@ -311,11 +346,37 @@ function Darkroom({ config, onEditSettings }: { config: Config; onEditSettings: 
         await rememberFolder(null)
       }
 
-      await refreshStrip()
-    } else {
-      setError(result.error)
+      setSaving(false)
+
+      /*
+       * Not awaited. The list is about to be off screen, so making the
+       * confirmation wait on a round trip nobody will see would only delay the
+       * one thing that has to be read. It is still refreshed rather than
+       * skipped, because window.close can be refused, and a popup that stays
+       * open should not be showing a stale sheet.
+       */
+      void refreshStrip()
+
+      /*
+       * The job is done, so the popup gets out of the way.
+       *
+       * The delay is not padding: the confirmation has to be read before the
+       * window goes, or closing is indistinguishable from the popup having
+       * crashed. It sits beside the shutter for the same reason, since the
+       * notice used to render below the live frame where a full popup put it
+       * under the fold.
+       *
+       * Only on success. A failure keeps the popup open with the error and
+       * with whatever was typed into the tags and the note still there.
+       *
+       * The keyboard shortcut path is not involved. It runs in the background
+       * worker with no popup open and answers with a badge instead.
+       */
+      setTimeout(() => window.close(), CLOSE_AFTER_MS)
+      return
     }
 
+    setError(result.error)
     setSaving(false)
   }
 
@@ -415,14 +476,22 @@ function Darkroom({ config, onEditSettings }: { config: Config; onEditSettings: 
             <button className="shutter" onClick={expose} disabled={saving}>
               {saving ? "Exposing" : "Capture"}
             </button>
+
+            {/* Inside the frame, under the button that caused it. The one at
+                the bottom of the scroll is too far down to be seen on a full
+                popup, and this one has to be read before the window closes. */}
+            {saved ? (
+              <div className="notice notice-ok framed" role="status">
+                {saved} Closing.
+              </div>
+            ) : null}
           </div>
         )}
 
         {error ? <div className="notice">{error}</div> : null}
-        {saved ? <div className="notice notice-ok">{saved}</div> : null}
 
         <div className="section-rule">
-          <span>Contact sheet</span>
+          <span>Last frames</span>
         </div>
 
         {recent.length === 0 ? (

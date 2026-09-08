@@ -534,8 +534,48 @@ textarea.field {
   box-shadow: inset 0 0 0 1px rgba(120, 150, 90, 0.5);
 }
 
+/*
+   The confirmation, inside the live frame rather than at the foot of the
+   scroll.
+
+   .notice carries the margins it needs down there, and here it is already
+   inside a padded frame, so they come back off. It has to be seen: the popup
+   closes a moment after this appears, and a message nobody read is the same as
+   no message at all.
+*/
+.notice.framed {
+  margin: 8px 0 0;
+}
+
 .pad {
   padding: 14px;
+}
+
+/*
+   Out of the settings form.
+
+   Deliberately quiet and above the heading rather than beside it, so it reads
+   as a way back rather than as an action competing with Connect.
+*/
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--silver-dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.back:hover {
+  color: var(--print-cream);
 }
 
 .lede {
