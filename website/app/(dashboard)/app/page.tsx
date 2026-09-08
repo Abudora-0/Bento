@@ -9,9 +9,10 @@ import { Pagination } from "~/components/Pagination"
 import { Sheet } from "~/components/Sheet"
 import { TrayToolbar } from "~/components/TrayToolbar"
 import { currentUser, requireUser } from "~/lib/current-user"
-import { loadTray } from "~/lib/db/bookmarks"
+import { loadTray, seedPositions } from "~/lib/db/bookmarks"
 import { PAGE_SIZE, pageOffset, parsePage, totalPages } from "~/lib/pagination"
 import { trayHref } from "~/lib/query"
+import { parseLayout } from "~/lib/bento-layout"
 import { parseSort, sortOption, type SortKey } from "~/lib/sort"
 
 export const dynamic = "force-dynamic"
@@ -23,6 +24,7 @@ type SearchParams = Promise<{
   star?: string
   sort?: string
   page?: string
+  layout?: string
 }>
 
 type Params = Awaited<SearchParams>
@@ -35,8 +37,15 @@ function readParams(params: Params) {
   const starredOnly = params.star === "1"
   const sort = parseSort(params.sort)
   const page = parsePage(params.page)
+  const layout = parseLayout(params.layout)
 
-  return { q, tag, folder, starredOnly, sort, page, from: pageOffset(page) }
+  /*
+   * Frames can only be dragged on the arrangement sort. Under any other, the
+   * server sorts the rows again on the next load and the drag is undone, which
+   * reads as the drag having silently failed rather than as an interface that
+   * was never offered.
+   */
+  return { q, tag, folder, starredOnly, sort, page, layout, arranging: sort === "custom", from: pageOffset(page) }
 }
 
 /**
@@ -129,7 +138,24 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
   const params = await searchParams
   const user = await requireUser()
 
-  const { q, tag, folder, starredOnly, sort, page, from } = readParams(params)
+  const { q, tag, folder, starredOnly, sort, page, layout, arranging, from } = readParams(params)
+
+  /*
+   * Every bookmark gets a position the first time this account looks at its
+   * own arrangement. It has to happen before the first drag rather than during
+   * one, because a drag only redistributes the positions the frames on screen
+   * already hold, and with nothing placed there would be nothing to
+   * redistribute. Idempotent after that, one indexed read that finds nothing.
+   *
+   * The db function directly, not the server action that wraps it. Server
+   * actions call revalidatePath, and revalidating the very route being
+   * rendered leaves the navigation pending forever: the sheet never appears
+   * and the skeleton never goes away. Server components on this project talk
+   * to lib/db straight anyway, they are already on the trusted server. The
+   * read below runs after this in the same request, so it sees the positions
+   * without anything having to be revalidated at all.
+   */
+  if (arranging) await seedPositions(user.id)
 
   // Memoised, so generateMetadata's call above and this one are one round trip.
   const { rows, total, folders: allFolders, allTags } = await readTray(user.id, ...trayArgs(params))
@@ -169,6 +195,8 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           activeTag={tag}
           count={total}
           sort={sort}
+          layout={layout}
+          arranging={arranging}
           folders={allFolders}
           activeFolder={folder}
         />
@@ -183,7 +211,14 @@ export default async function TrayPage({ searchParams }: { searchParams: SearchP
           ) : (
             // Sheet owns the cursor, the selection and the loupe, and keys
             // the grid by page so the advance animation re-runs on each turn.
-            <Sheet rows={rows} folders={allFolders} from={from} page={page} />
+            <Sheet
+              rows={rows}
+              folders={allFolders}
+              from={from}
+              page={page}
+              layout={layout}
+              arranging={arranging}
+            />
           )}
         </section>
 

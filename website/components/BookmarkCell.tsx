@@ -4,7 +4,8 @@ import { useState, useTransition } from "react"
 
 import { setStarred } from "~/app/(dashboard)/actions"
 import { hostnameOf, isoDate } from "~/lib/format"
-import type { BookmarkWithFolder, Folder } from "~/types/db"
+import { SHAPE_LABELS } from "~/lib/bento-layout"
+import type { BookmarkWithFolder, Folder, Shape } from "~/types/db"
 
 import { BookmarkEditor } from "./BookmarkEditor"
 import { FrameShot } from "./FrameShot"
@@ -22,7 +23,11 @@ export function BookmarkCell({
   selected = false,
   selecting = false,
   onSelect,
-  onLoupe
+  onLoupe,
+  arranging = false,
+  dragging = false,
+  onGrab,
+  onShape
 }: {
   bookmark: BookmarkWithFolder
   folders: Folder[]
@@ -40,6 +45,12 @@ export function BookmarkCell({
   selecting?: boolean
   onSelect?: () => void
   onLoupe?: () => void
+  /** Whether this frame can be moved and resized right now. */
+  arranging?: boolean
+  /** Whether this is the frame currently being dragged. */
+  dragging?: boolean
+  onGrab?: (event: React.PointerEvent) => void
+  onShape?: (shape: Shape | null) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [starred, setLocalStarred] = useState(bookmark.starred)
@@ -87,6 +98,9 @@ export function BookmarkCell({
       <article
         data-cursored={cursored || undefined}
         data-selected={selected || undefined}
+        data-dragging={dragging || undefined}
+        data-arranging={arranging || undefined}
+        onPointerDown={arranging ? onGrab : undefined}
         className={`frame frame-hover animate-develop group/frame flex flex-col overflow-hidden ${className}`}
         // Capped so page two does not sit there developing for four seconds.
         style={{ animationDelay: `${Math.min(index, 11) * 45}ms` }}
@@ -119,11 +133,16 @@ export function BookmarkCell({
           element is on top, so it would otherwise swallow the modifier and
           just navigate.
         */}
+        {/*
+          Switched off while arranging. It is on top of everything at z-10, so
+          left live it would swallow the press that starts a drag and then
+          navigate on the release.
+        */}
         <a
           href={bookmark.url}
           target="_blank"
           rel="noreferrer noopener"
-          className="absolute inset-0 z-10"
+          className={`absolute inset-0 z-10 ${arranging ? "pointer-events-none" : ""}`}
           onClick={(event) => {
             if (!onSelect) return
             if (event.shiftKey || selecting) {
@@ -153,6 +172,8 @@ export function BookmarkCell({
             >
               {String(frame).padStart(2, "0")}
             </button>
+
+            {arranging ? <ShapeButton shape={bookmark.shape} title={title} onShape={onShape} /> : null}
           </div>
 
           <div className="flex min-w-0 items-center gap-1.5">
@@ -239,6 +260,44 @@ export function BookmarkCell({
         <BookmarkEditor bookmark={bookmark} folders={folders} onClose={() => setEditing(false)} />
       ) : null}
     </>
+  )
+}
+
+/**
+ * Cycles this frame's size.
+ *
+ * A button rather than a dropdown, and a cycle rather than a menu, because it
+ * lives inside a frame that may be 112px tall and there are only four sizes.
+ * Clicking past the last one clears the shape, which puts the frame back under
+ * the layout cycle rather than leaving it stuck at whatever it was last set
+ * to, so there is a way back to the default without a separate control.
+ */
+function ShapeButton({
+  shape,
+  title,
+  onShape
+}: {
+  shape: Shape | null
+  title: string
+  onShape?: (shape: Shape | null) => void
+}) {
+  const order: (Shape | null)[] = ["small", "wide", "tall", "big", null]
+  const next = order[(order.indexOf(shape) + 1) % order.length]
+  const label = shape ? SHAPE_LABELS[shape] : "Auto"
+
+  return (
+    <button
+      type="button"
+      // Stops the press from also starting a drag on the frame underneath.
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={() => onShape?.(next)}
+      className="relative z-20 shrink-0 px-1 py-0.5 text-[9px] uppercase tracking-[0.12em] text-silver-dim transition-colors hover:text-print"
+      style={{ boxShadow: "inset 0 0 0 1px var(--line-field)" }}
+      title={`Size: ${label}. Click for ${next ? SHAPE_LABELS[next] : "Auto"}`}
+      aria-label={`Size of ${title}, currently ${label}`}
+    >
+      {label}
+    </button>
   )
 }
 

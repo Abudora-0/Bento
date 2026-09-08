@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
+import { LAYOUTS, type LayoutKey } from "~/lib/bento-layout"
 import { trayHref } from "~/lib/query"
 import { SORT_OPTIONS, type SortKey } from "~/lib/sort"
 import type { Folder } from "~/types/db"
@@ -17,6 +18,8 @@ export function TrayToolbar({
   activeTag,
   count,
   sort,
+  layout,
+  arranging,
   folders,
   activeFolder
 }: {
@@ -25,6 +28,9 @@ export function TrayToolbar({
   activeTag: string
   count: number
   sort: SortKey
+  layout: LayoutKey
+  /** True on the arrangement sort, which is the only one frames can be moved in. */
+  arranging: boolean
   folders: Folder[]
   activeFolder: string
 }) {
@@ -105,6 +111,20 @@ export function TrayToolbar({
           className="w-[10.5rem] shrink-0"
         />
 
+        <Select
+          id="tray-layout"
+          ariaLabel="Shape of the compartments"
+          value={layout}
+          options={LAYOUTS.map((option) => ({ value: option.key, label: option.label }))}
+          onChange={(next) => {
+            router.replace(
+              trayHref(searchParams, { layout: next === "contact" ? null : (next as LayoutKey) }),
+              { scroll: false }
+            )
+          }}
+          className="w-[10.5rem] shrink-0"
+        />
+
         <button type="button" onClick={() => setAdding(true)} className="shrink-0 shutter">
           Add
         </button>
@@ -136,6 +156,18 @@ export function TrayToolbar({
           </Link>
         ) : null}
       </div>
+
+      {/*
+        Said once, where the frames are, rather than left for you to discover.
+        Dragging is only possible on the arrangement, and a frame that moves
+        under one sort and not another is baffling without being told why.
+      */}
+      {arranging ? (
+        <p className="mt-2 text-[10.5px] leading-relaxed text-silver-dim">
+          Drag a frame to move it, or hold Ctrl and press an arrow. The button beside each frame
+          number sets its size, and Auto hands it back to the layout.
+        </p>
+      ) : null}
 
       {adding ? (
         <AddBookmarkDialog

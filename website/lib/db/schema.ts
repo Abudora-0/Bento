@@ -66,6 +66,13 @@ create table if not exists bookmarks (
   notes          text not null default '' check (length(notes) <= 10000),
   folder_id      text references folders (id) on delete set null,
   starred        integer not null default 0 check (starred in (0, 1)),
+  -- Where this frame sits when the sheet is arranged by hand, and how big it
+  -- is drawn. Both null by default: null position means follow whichever sort
+  -- is on, null shape means follow the layout cycle. Nullable is not a
+  -- preference, SQLite cannot add a NOT NULL column to a table that already
+  -- has rows without a default, and a shared default here would be a lie.
+  position       integer,
+  shape          text check (shape is null or shape in ('small', 'wide', 'tall', 'big')),
   created_at     text not null,
   updated_at     text not null
 );
@@ -81,4 +88,5 @@ create index if not exists bookmarks_user_folder_idx on bookmarks (user_id, fold
 create index if not exists bookmarks_user_created_idx on bookmarks (user_id, created_at desc, id);
 create index if not exists bookmarks_user_updated_idx on bookmarks (user_id, updated_at desc, id);
 create index if not exists bookmarks_user_title_idx on bookmarks (user_id, title, id);
+create index if not exists bookmarks_user_position_idx on bookmarks (user_id, position, id);
 `

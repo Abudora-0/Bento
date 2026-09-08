@@ -1,6 +1,6 @@
 import type { InStatement } from "@libsql/client"
 
-import type { Bookmark, BookmarkWithFolder, Folder } from "~/types/db"
+import type { Bookmark, BookmarkWithFolder, Folder, Shape } from "~/types/db"
 
 import { db, newId, now, readBatch } from "./client.ts"
 import { LIST_FOLDERS_SQL, rowToFolder } from "./folders.ts"
@@ -30,10 +30,27 @@ function rowToBookmark(row: Row): BookmarkWithFolder {
     folder_id: folderId,
     // SQLite has no boolean, the column is an integer 0 or 1.
     starred: Number(row.starred) === 1,
+    position: row.position === null || row.position === undefined ? null : Number(row.position),
+    shape: asShape(row.shape),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     folder: folderId && folderName ? { id: folderId, name: folderName } : null
   }
+}
+
+/** The four sizes a frame can be set to by hand. */
+export const SHAPES: readonly Shape[] = ["small", "wide", "tall", "big"]
+
+/**
+ * A stored shape, or null for anything else.
+ *
+ * The column has a check constraint, so a bad value cannot get in through this
+ * layer. It can still be read out of a database somebody edited by hand, and a
+ * shape the grid does not know would be a class name that does not exist,
+ * which fails as a frame with no size at all rather than as an error.
+ */
+export function asShape(value: unknown): Shape | null {
+  return SHAPES.includes(value as Shape) ? (value as Shape) : null
 }
 
 /** Escapes % and _ so a pasted search term is matched literally, not as a wildcard. */
@@ -41,7 +58,7 @@ function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 }
 
-export type SortColumn = "created_at" | "updated_at" | "title"
+export type SortColumn = "created_at" | "updated_at" | "title" | "position"
 
 export type ListOptions = {
   q?: string
@@ -106,10 +123,22 @@ export type TrayData = {
 export async function loadTray(userId: string, opts: ListOptions): Promise<TrayData> {
   const { clause, args } = buildFilter(userId, opts)
 
-  // The sort column comes from lib/sort.ts's fixed enum, never straight from
-  // the request, so interpolating it cannot be used for injection the way
-  // interpolating a value would.
-  const order = `bookmarks.${opts.sortColumn} ${opts.ascending ? "asc" : "desc"}, bookmarks.id asc`
+  /*
+   * The sort column comes from lib/sort.ts's fixed enum, never straight from
+   * the request, so interpolating it cannot be used for injection the way
+   * interpolating a value would.
+   *
+   * A hand made arrangement needs one extra clause. Position is null on
+   * anything that has never been placed, and null sorts first in SQLite, so
+   * without "is null" leading, a single unplaced bookmark would sit in front
+   * of an arrangement somebody built. Sinking them and then falling back to
+   * the newest also means the sort still reads sensibly on an account that has
+   * never arranged anything.
+   */
+  const order =
+    opts.sortColumn === "position"
+      ? "bookmarks.position is null, bookmarks.position asc, bookmarks.created_at desc, bookmarks.id asc"
+      : `bookmarks.${opts.sortColumn} ${opts.ascending ? "asc" : "desc"}, bookmarks.id asc`
 
   const statements: InStatement[] = [
     { sql: `select count(*) as n from bookmarks ${clause}`, args },
@@ -362,6 +391,114 @@ export async function bulkDelete(userId: string, ids: string[]): Promise<string[
   return rows
     .map((row) => nullableText((row as Row).screenshot_url))
     .filter((url): url is string => url !== null)
+}
+
+/* ---------------------------------------------------------------------------
+   Arranging the sheet by hand.
+   --------------------------------------------------------------------------- */
+
+/**
+ * Gives every bookmark a position, in whatever order they are in now.
+ *
+ * Run once, the first time an account looks at its own arrangement. Without it
+ * a drag inside a folder filter writes positions for the handful of rows on
+ * screen and leaves every other row null, and null rows sink to the end, so
+ * the arrangement you just made appears to have thrown the rest of the sheet
+ * to the bottom.
+ *
+ * Seeded newest first, which is the sort the sheet opens on, so switching to
+ * an arrangement for the first time changes nothing about what you are looking
+ * at. It only makes it movable.
+ *
+ * Idempotent by its where clause: rows that already have a position keep it,
+ * so this can be called on every visit without ever disturbing an arrangement.
+ */
+export async function seedPositions(userId: string): Promise<number> {
+  const { rows } = await db().execute({
+    sql: `select id from bookmarks
+          where user_id = ? and position is null
+          order by created_at desc, id asc`,
+    args: [userId]
+  })
+
+  if (rows.length === 0) return 0
+
+  /*
+   * Started past anything already placed, so seeding an account that has
+   * arranged some of its sheet appends rather than colliding.
+   */
+  const { rows: top } = await db().execute({
+    sql: "select coalesce(max(position), -1) as top from bookmarks where user_id = ?",
+    args: [userId]
+  })
+  let next = Number((top[0] as Row).top) + 1
+
+  const statements: InStatement[] = rows.map((row) => ({
+    sql: "update bookmarks set position = ? where user_id = ? and id = ? and position is null",
+    args: [next++, userId, String((row as Row).id)]
+  }))
+
+  await db().batch(statements, "write")
+  return statements.length
+}
+
+/**
+ * Rewrites the order of the frames on screen, and only those.
+ *
+ * The positions the moved rows already hold are collected, sorted, and handed
+ * back out in the new visual order. That is what keeps a drag inside a filter
+ * honest: reorder three bookmarks while looking at one folder and they swap
+ * places among themselves, and every row you cannot see keeps the position it
+ * had. Numbering them 0, 1, 2 instead would quietly move them all to the front
+ * of the whole sheet.
+ *
+ * Every statement carries user_id, so ids belonging to somebody else match
+ * nothing and change nothing.
+ */
+export async function reorderBookmarks(userId: string, ids: string[]): Promise<number> {
+  const list = bulkIds(ids)
+  if (list.length < 2) return 0
+
+  const { rows } = await db().execute({
+    sql: `select id, position from bookmarks
+          where user_id = ? and id in (${placeholders(list.length)})`,
+    args: [userId, ...list]
+  })
+
+  // Only the rows that are really this account's, in the order asked for.
+  const owned = new Set(rows.map((row) => String((row as Row).id)))
+  const ordered = list.filter((id) => owned.has(id))
+  if (ordered.length < 2) return 0
+
+  const slots = rows
+    .map((row) => (row as Row).position)
+    .filter((value): value is number | bigint => value !== null && value !== undefined)
+    .map(Number)
+    .sort((a, b) => a - b)
+
+  // Nothing has been placed yet, so there are no slots to shuffle. The caller
+  // seeds first, and this says plainly that it did nothing rather than
+  // inventing an order.
+  if (slots.length !== ordered.length) return 0
+
+  const stamp = now()
+  const statements: InStatement[] = ordered.map((id, i) => ({
+    sql: "update bookmarks set position = ?, updated_at = ? where user_id = ? and id = ?",
+    args: [slots[i], stamp, userId, id]
+  }))
+
+  await db().batch(statements, "write")
+  return statements.length
+}
+
+/** Sets one frame's size by hand, or clears it back to the layout cycle. */
+export async function setShape(userId: string, id: string, shape: Shape | null): Promise<boolean> {
+  const result = await db().execute({
+    sql: "update bookmarks set shape = ?, updated_at = ? where user_id = ? and id = ?",
+    args: [shape, now(), userId, id]
+  })
+
+  return result.rowsAffected > 0
 }
 
 export async function countBookmarks(userId: string): Promise<number> {

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 
-import { bulkUpdate, setStarred } from "~/app/(dashboard)/actions"
-import { TRAY_GRID, compartment } from "~/lib/bento-layout"
+import { bulkUpdate, reorderBookmarks, setShape, setStarred } from "~/app/(dashboard)/actions"
+import { type LayoutKey, compartmentFor, trayGrid } from "~/lib/bento-layout"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
 
 import { BookmarkCell } from "./BookmarkCell"
 import { Loupe } from "./Loupe"
 import { Select, folderOptions } from "./Select"
+import { useArrange } from "./useArrange"
 
 /**
  * The sheet, and everything you can do to it without a mouse.
@@ -25,13 +26,25 @@ export function Sheet({
   rows,
   folders,
   from,
-  page
+  page,
+  layout,
+  arranging = false
 }: {
   rows: BookmarkWithFolder[]
   folders: Folder[]
   /** Offset of the first row on this page, for the global frame number. */
   from: number
   page: number
+  /** Which cycle sizes the frames that have no shape of their own. */
+  layout: LayoutKey
+  /**
+   * Whether frames can be moved and resized right now.
+   *
+   * Only ever true on the arrangement sort. Dragging under a sort the server
+   * applies would be undone on the next load, so the toolbar will not offer it
+   * and this is the second place that is enforced.
+   */
+  arranging?: boolean
 }) {
   const [cursor, setCursor] = useState(-1)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -45,6 +58,15 @@ export function Sheet({
     setSelected(new Set())
     setLoupe(-1)
   }, [page])
+
+  const commitOrder = useCallback((ids: string[]) => {
+    startTransition(async () => {
+      await reorderBookmarks(ids)
+    })
+  }, [])
+
+  const arrange = useArrange({ rows, enabled: arranging, gridRef, onCommit: commitOrder })
+  const shown = arranging ? arrange.displayed : rows
 
   const toggleSelected = useCallback((id: string) => {
     setSelected((was) => {
@@ -82,14 +104,42 @@ export function Sheet({
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
       if (target?.isContentEditable) return
       if (document.querySelector('[role="dialog"]')) return
+      if (shown.length === 0) return
+
+      /*
+       * Moving a frame from the keyboard, so arranging is not a mouse only
+       * feature. Ctrl and an arrow, which has to be carved out of the guard
+       * below rather than added after it: that guard exists so the grid never
+       * swallows an ordinary browser shortcut, and this is the one combination
+       * it is allowed to take.
+       */
+      if (arranging && event.ctrlKey && !event.metaKey && !event.altKey && cursor >= 0) {
+        const by =
+          event.key === "ArrowRight"
+            ? 1
+            : event.key === "ArrowLeft"
+              ? -1
+              : event.key === "ArrowDown"
+                ? columnsAt(cursor)
+                : event.key === "ArrowUp"
+                  ? -columnsAt(cursor)
+                  : 0
+
+        if (by !== 0) {
+          event.preventDefault()
+          const landed = arrange.shift(cursor, by)
+          if (landed !== undefined) setCursor(landed)
+          return
+        }
+      }
+
       if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (rows.length === 0) return
 
       const step = (delta: number) => {
         event.preventDefault()
         setCursor((was) => {
           const next = was < 0 ? 0 : was + delta
-          return Math.max(0, Math.min(rows.length - 1, next))
+          return Math.max(0, Math.min(shown.length - 1, next))
         })
       }
 
@@ -107,11 +157,11 @@ export function Sheet({
           return setCursor(0)
         case "End":
           event.preventDefault()
-          return setCursor(rows.length - 1)
+          return setCursor(shown.length - 1)
       }
 
       if (cursor < 0) return
-      const bookmark = rows[cursor]
+      const bookmark = shown[cursor]
       if (!bookmark) return
 
       if (event.key === " ") {
@@ -137,7 +187,7 @@ export function Sheet({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [cursor, rows, columnsAt, toggleSelected])
+  }, [cursor, shown, columnsAt, toggleSelected, arranging, arrange])
 
   // Keep the cursor on screen when it walks off the bottom.
   useEffect(() => {
@@ -158,9 +208,23 @@ export function Sheet({
 
   return (
     <>
-      <div ref={gridRef} key={page} className={`animate-advance ${TRAY_GRID}`}>
-        {rows.map((bookmark, index) => {
-          const shape = compartment(index)
+      {/*
+        Dense packing comes off while the sheet is arrangeable. It is what lets
+        a later small frame backfill the hole a taller earlier one left, which
+        is right for an automatic cycle and wrong for an arrangement somebody
+        made: with it on the browser is free to put a frame somewhere other
+        than where it was dropped, so what gets saved is not what is on screen.
+      */}
+      <div
+        ref={gridRef}
+        key={page}
+        className={`animate-advance ${trayGrid(arranging)}`}
+        onPointerMove={arranging ? arrange.onPointerMove : undefined}
+        onPointerUp={arranging ? arrange.onPointerUp : undefined}
+        onPointerCancel={arranging ? arrange.onPointerUp : undefined}
+      >
+        {shown.map((bookmark, index) => {
+          const shape = compartmentFor(index, bookmark.shape, layout)
           return (
             <BookmarkCell
               key={bookmark.id}
@@ -176,6 +240,10 @@ export function Sheet({
               selecting={selected.size > 0}
               onSelect={() => toggleSelected(bookmark.id)}
               onLoupe={() => setLoupe(index)}
+              arranging={arranging}
+              dragging={arrange.draggingId === bookmark.id}
+              onGrab={(event) => arrange.onPointerDown(event, index)}
+              onShape={(next) => startTransition(async () => void (await setShape(bookmark.id, next)))}
             />
           )
         })}
@@ -194,7 +262,7 @@ export function Sheet({
       ) : null}
 
       {loupe >= 0 ? (
-        <Loupe bookmarks={rows} index={loupe} onIndex={setLoupe} onClose={() => setLoupe(-1)} />
+        <Loupe bookmarks={shown} index={loupe} onIndex={setLoupe} onClose={() => setLoupe(-1)} />
       ) : null}
     </>
   )

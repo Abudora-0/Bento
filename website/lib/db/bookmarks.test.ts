@@ -19,7 +19,10 @@ const {
   importBookmarks,
   bookmarksWithoutImage,
   setShareImages,
-  setScreenshot
+  setScreenshot,
+  seedPositions,
+  reorderBookmarks,
+  setShape
 } = await import("./bookmarks.ts")
 const { createFolder, listFolders, renameFolder, deleteFolder } = await import("./folders.ts")
 
@@ -645,5 +648,164 @@ describe("setScreenshot", () => {
       (await getBookmark(alice.id, mine.bookmark.id))?.screenshot_url,
       "https://blob.example.com/mine.jpg"
     )
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/* Arranging the sheet by hand                                                 */
+/* -------------------------------------------------------------------------- */
+
+describe("arranging the sheet", () => {
+  /** Three bookmarks for one account, oldest first, spaced so the order is not a coin toss. */
+  async function threeFor(userId: string, prefix: string) {
+    const made = []
+    for (const n of [1, 2, 3]) {
+      made.push((await upsertByUrl(userId, { ...base, url: `https://${prefix}.example.com/${n}` })).bookmark)
+      // created_at is millisecond resolution and several inserts routinely land
+      // inside one, which makes the tiebreak a random uuid and the order a coin
+      // toss. Two milliseconds is enough to keep it deterministic.
+      await new Promise((done) => setTimeout(done, 3))
+    }
+    return made
+  }
+
+  const arranged = { ...listing, sortColumn: "position" as const, ascending: true }
+
+  it("seeds every unplaced bookmark, newest first, which is the order it was already in", async () => {
+    const carol = await makeUser("arrange-seed@example.com")
+    const made = await threeFor(carol.id, "seed")
+
+    assert.equal(await seedPositions(carol.id), 3)
+
+    const tray = await loadTray(carol.id, arranged)
+    assert.deepEqual(
+      tray.rows.map((row) => row.url),
+      [made[2].url, made[1].url, made[0].url]
+    )
+    assert.deepEqual(
+      tray.rows.map((row) => row.position),
+      [0, 1, 2]
+    )
+  })
+
+  it("seeds again without disturbing an arrangement already made", async () => {
+    const carol = await makeUser("arrange-reseed@example.com")
+    const made = await threeFor(carol.id, "reseed")
+    await seedPositions(carol.id)
+    assert.equal(made.length, 3)
+
+    await reorderBookmarks(carol.id, [made[0].id, made[2].id, made[1].id])
+    const before = (await loadTray(carol.id, arranged)).rows.map((row) => row.url)
+
+    // A fourth arrives afterwards, so seeding runs again.
+    const late = (await upsertByUrl(carol.id, { ...base, url: "https://reseed.example.com/late" })).bookmark
+    assert.equal(await seedPositions(carol.id), 1)
+
+    const after = (await loadTray(carol.id, arranged)).rows.map((row) => row.url)
+    assert.deepEqual(after.slice(0, 3), before, "the arrangement moved")
+    assert.equal(after[3], late.url, "the new one did not land at the end")
+  })
+
+  it("keeps the order a drag put them in", async () => {
+    const carol = await makeUser("arrange-drag@example.com")
+    const made = await threeFor(carol.id, "drag")
+    await seedPositions(carol.id)
+
+    // Newest first, so the seeded order is 3, 2, 1. Drag the last to the front.
+    await reorderBookmarks(carol.id, [made[0].id, made[2].id, made[1].id])
+
+    assert.deepEqual(
+      (await loadTray(carol.id, arranged)).rows.map((row) => row.url),
+      [made[0].url, made[2].url, made[1].url]
+    )
+  })
+
+  /*
+   * The reason positions are shuffled rather than renumbered from zero. A drag
+   * inside a filter only ever knows about the rows on screen, and renumbering
+   * them 0, 1, 2 would move them all to the front of the whole sheet.
+   */
+  it("a drag among some frames leaves every other frame where it was", async () => {
+    const carol = await makeUser("arrange-subset@example.com")
+    const made = await threeFor(carol.id, "subset")
+    const extra = []
+    for (const n of [4, 5]) {
+      extra.push((await upsertByUrl(carol.id, { ...base, url: `https://subset.example.com/${n}` })).bookmark)
+      await new Promise((done) => setTimeout(done, 3))
+    }
+    await seedPositions(carol.id)
+
+    const before = (await loadTray(carol.id, arranged)).rows.map((row) => row.url)
+
+    // Swap two of them, as a drag inside a filter would.
+    await reorderBookmarks(carol.id, [made[0].id, made[1].id])
+
+    const after = (await loadTray(carol.id, arranged)).rows.map((row) => row.url)
+    assert.deepEqual(
+      after.filter((url) => url !== made[0].url && url !== made[1].url),
+      before.filter((url) => url !== made[0].url && url !== made[1].url),
+      "frames that were not dragged moved"
+    )
+    assert.equal(after.length, 5)
+  })
+
+  it("puts a bookmark that has never been placed at the end, not the front", async () => {
+    const carol = await makeUser("arrange-null@example.com")
+    await threeFor(carol.id, "nulls")
+    await seedPositions(carol.id)
+
+    // Arrives after the seeding and is never placed, so its position is null.
+    const loose = (await upsertByUrl(carol.id, { ...base, url: "https://nulls.example.com/loose" })).bookmark
+
+    const rows = (await loadTray(carol.id, arranged)).rows
+    assert.equal(rows[rows.length - 1].url, loose.url, "an unplaced row led the arrangement")
+    assert.equal(rows[rows.length - 1].position, null)
+  })
+
+  it("stores a shape and clears it again", async () => {
+    const carol = await makeUser("arrange-shape@example.com")
+    const [one] = await threeFor(carol.id, "shape")
+
+    assert.equal(await setShape(carol.id, one.id, "wide"), true)
+    assert.equal((await getBookmark(carol.id, one.id))?.shape, "wide")
+
+    assert.equal(await setShape(carol.id, one.id, null), true)
+    assert.equal((await getBookmark(carol.id, one.id))?.shape, null)
+  })
+
+  it("cannot reorder another account's frames", async () => {
+    const mine = await threeFor(alice.id, "isolation-order")
+    await seedPositions(alice.id)
+    const before = (await loadTray(alice.id, arranged)).rows.map((row) => row.url)
+
+    await reorderBookmarks(bob.id, [mine[2].id, mine[0].id, mine[1].id])
+
+    assert.deepEqual((await loadTray(alice.id, arranged)).rows.map((row) => row.url), before)
+  })
+
+  it("cannot shape another account's frame", async () => {
+    const [mine] = await threeFor(alice.id, "isolation-shape")
+
+    assert.equal(await setShape(bob.id, mine.id, "big"), false)
+    assert.equal((await getBookmark(alice.id, mine.id))?.shape, null)
+  })
+
+  it("cannot mix another account's ids into its own reorder", async () => {
+    const carol = await makeUser("arrange-mixed@example.com")
+    const theirs = await threeFor(carol.id, "mixed-theirs")
+    await seedPositions(carol.id)
+    const before = (await loadTray(carol.id, arranged)).rows.map((row) => row.url)
+
+    const [ours] = await threeFor(alice.id, "mixed-ours")
+    await seedPositions(alice.id)
+    const aliceBefore = (await loadTray(alice.id, arranged)).rows.map((row) => row.url)
+
+    // Carol asks to reorder two of hers plus one of Alice's. The foreign id is
+    // dropped, which leaves fewer ids than slots, so nothing is written at all
+    // rather than a partial shuffle.
+    await reorderBookmarks(carol.id, [theirs[2].id, ours.id, theirs[0].id])
+
+    assert.deepEqual((await loadTray(carol.id, arranged)).rows.map((row) => row.url), before)
+    assert.deepEqual((await loadTray(alice.id, arranged)).rows.map((row) => row.url), aliceBefore)
   })
 })

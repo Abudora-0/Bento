@@ -16,6 +16,9 @@ export type Folder = {
   created_at: string
 }
 
+/** The sizes a frame can be set to by hand. Null follows the cycle instead. */
+export type Shape = "small" | "wide" | "tall" | "big"
+
 export type Bookmark = {
   id: string
   url: string
@@ -26,6 +29,10 @@ export type Bookmark = {
   notes: string
   folder_id: string | null
   starred: boolean
+  /** Where it sits in a hand made arrangement. Null means follow the sort. */
+  position: number | null
+  /** How big it is drawn. Null means follow the layout cycle. */
+  shape: Shape | null
   created_at: string
   updated_at: string
 }

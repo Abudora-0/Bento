@@ -9,6 +9,7 @@ import * as folders from "~/lib/db/folders"
 import { discoverFaviconUrl, discoverShareImageUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
 import { BACKFILL_BATCH, IMPORT_CHUNK, type ImportedBookmark } from "~/lib/netscape"
+import type { Shape } from "~/types/db"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -198,6 +199,52 @@ export async function bulkUpdate(ids: string[], action: BulkAction): Promise<Act
     } else {
       await bookmarks.bulkSetFolder(user.id, ids, action.folderId)
     }
+
+    refresh()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Arranging the sheet                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Saves the order the frames were dragged into.
+ *
+ * `ids` is the frames on screen in their new order, and nothing else. The db
+ * layer redistributes the positions those rows already hold, so dragging
+ * inside a folder filter rearranges them among themselves without moving them
+ * relative to everything hidden by the filter.
+ */
+export async function reorderBookmarks(ids: string[]): Promise<ActionResult> {
+  try {
+    const user = await requireUser()
+    if (!Array.isArray(ids) || ids.length < 2) return { ok: true }
+
+    await bookmarks.reorderBookmarks(user.id, ids)
+    refresh()
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." }
+  }
+}
+
+/** Sets one frame's size, or clears it back to whatever the layout cycle says. */
+export async function setShape(id: string, shape: Shape | null): Promise<ActionResult> {
+  try {
+    const user = await requireUser()
+
+    // Checked here as well as by the column's constraint, so a forged call
+    // gets an answer rather than a database error.
+    if (shape !== null && !bookmarks.SHAPES.includes(shape)) {
+      return { ok: false, error: "That is not a size a frame can be." }
+    }
+
+    const changed = await bookmarks.setShape(user.id, id, shape)
+    if (!changed) return { ok: false, error: "That bookmark no longer exists." }
 
     refresh()
     return { ok: true }
