@@ -7,6 +7,7 @@ import { hostnameOf, isoDate } from "~/lib/format"
 import type { BookmarkWithFolder, Folder } from "~/types/db"
 
 import { BookmarkEditor } from "./BookmarkEditor"
+import { FrameShot } from "./FrameShot"
 import { GreaseCircle } from "./Wordmark"
 
 export function BookmarkCell({
@@ -63,10 +64,6 @@ export function BookmarkCell({
 
   const host = hostnameOf(bookmark.url)
   const title = bookmark.title?.trim() || host
-  // Tall frames always get a plate. Without a capture it shows the site's
-  // own mark on unexposed stock, which is a frame waiting to be exposed
-  // rather than a hole in the sheet.
-  const showPlate = tall
   const visibleTags = bookmark.tags.slice(0, wide ? 4 : 2)
   const hiddenTags = bookmark.tags.length - visibleTags.length
 
@@ -94,6 +91,26 @@ export function BookmarkCell({
         // Capped so page two does not sit there developing for four seconds.
         style={{ animationDelay: `${Math.min(index, 11) * 45}ms` }}
       >
+        {/*
+          The capture, filling the frame.
+
+          A frame is the photograph, so the picture is the frame's ground
+          rather than a plate stacked above the caption. That is the only way
+          the short compartments get one at all: at 112px there was never room
+          for an image block and two lines of text one after the other, so two
+          thirds of every sheet was text on black.
+
+          First child, and it stays below the anchor below it. See globals.css
+          for the z order the rails force.
+        */}
+        <FrameShot
+          src={bookmark.screenshot_url}
+          faviconUrl={bookmark.favicon_url}
+          host={host}
+          scrim="none"
+        />
+        <span className="frame-scrim-top" aria-hidden />
+
         {/*
           The whole frame opens the page. Controls sit above this layer at
           z-20, which is the only reason they are clickable at all.
@@ -144,27 +161,16 @@ export function BookmarkCell({
           </div>
         </div>
 
-        {showPlate ? (
-          bookmark.screenshot_url ? (
-            <div className="plate relative mt-2 min-h-0 flex-1">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={bookmark.screenshot_url} alt="" loading="lazy" />
-            </div>
-          ) : (
-            <div className="plate plate-unexposed relative mt-2 min-h-0 flex-1">
-              {bookmark.favicon_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={bookmark.favicon_url} alt="" loading="lazy" className="plate-mark" />
-              ) : (
-                <span className="plate-letter" aria-hidden>
-                  {host.replace(/^www\./, "").charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-          )
-        ) : null}
+        {/*
+          Everything written on the frame, held at the bottom and carrying its
+          own scrim, so the words stay readable over a picture of any
+          brightness. See .frame-caption.
 
-        <div className={`relative min-w-0 ${showPlate ? "mt-2" : "mt-1.5 flex-1"}`}>
+          The title and the footer row have to be inside the same wrapper. Left
+          as siblings, the scrim ends above the tags and the date, and a strip
+          of bright screenshot runs underneath them.
+        */}
+        <div className="frame-caption relative min-w-0">
           <h3
             className={`font-[family-name:var(--font-head)] font-normal leading-[1.25] text-print ${
               tall ? "text-[15px] clamp-3" : "text-[13.5px] clamp-2"
@@ -176,55 +182,55 @@ export function BookmarkCell({
           {wide && bookmark.notes ? (
             <p className="mt-1 clamp-2 text-[10.5px] leading-snug text-silver-dim">{bookmark.notes}</p>
           ) : null}
-        </div>
 
-        <div className="relative mt-2 flex items-end justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            {visibleTags.map((tag) => (
-              <span key={tag} className="tag">
-                {tag}
-              </span>
-            ))}
-            {hiddenTags > 0 ? (
-              <span className="font-[family-name:var(--font-mono)] text-[9px] text-silver-dim">
-                +{hiddenTags}
-              </span>
-            ) : null}
-          </div>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {visibleTags.map((tag) => (
+                <span key={tag} className="tag">
+                  {tag}
+                </span>
+              ))}
+              {hiddenTags > 0 ? (
+                <span className="font-[family-name:var(--font-mono)] text-[9px] text-silver-dim">
+                  +{hiddenTags}
+                </span>
+              ) : null}
+            </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            {bookmark.folder ? (
-              <span className="hidden max-w-[6rem] truncate frame-stamp sm:inline">
-                {bookmark.folder.name}
-              </span>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {bookmark.folder ? (
+                <span className="hidden max-w-[6rem] truncate frame-stamp sm:inline">
+                  {bookmark.folder.name}
+                </span>
+              ) : null}
 
-            <span className="frame-stamp">{isoDate(bookmark.created_at)}</span>
+              <span className="frame-stamp">{isoDate(bookmark.created_at)}</span>
 
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              aria-label={`Edit ${title}`}
-              title="Edit"
-              className="relative z-20 -m-1 p-1 text-silver-dim opacity-0 transition hover:text-print focus-visible:opacity-100 group-hover/frame:opacity-100"
-            >
-              <PencilIcon />
-            </button>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label={`Edit ${title}`}
+                title="Edit"
+                className="relative z-20 -m-1 p-1 text-silver-dim opacity-0 transition hover:text-print focus-visible:opacity-100 group-hover/frame:opacity-100"
+              >
+                <PencilIcon />
+              </button>
 
-            <button
-              type="button"
-              onClick={toggleStar}
-              aria-pressed={starred}
-              aria-label={starred ? "Remove the grease pencil mark" : "Mark with grease pencil"}
-              title={starred ? "Remove mark" : "Mark this one"}
-              className={`relative z-20 -m-0.5 h-6 w-6 shrink-0 p-0.5 text-silver-dim transition-opacity hover:text-silver ${
-                starred
-                  ? "opacity-100"
-                  : "opacity-0 focus-visible:opacity-100 group-hover/frame:opacity-100"
-              }`}
-            >
-              <GreaseCircle marked={starred} draw={justStarred} />
-            </button>
+              <button
+                type="button"
+                onClick={toggleStar}
+                aria-pressed={starred}
+                aria-label={starred ? "Remove the grease pencil mark" : "Mark with grease pencil"}
+                title={starred ? "Remove mark" : "Mark this one"}
+                className={`relative z-20 -m-0.5 h-6 w-6 shrink-0 p-0.5 text-silver-dim transition-opacity hover:text-silver ${
+                  starred
+                    ? "opacity-100"
+                    : "opacity-0 focus-visible:opacity-100 group-hover/frame:opacity-100"
+                }`}
+              >
+                <GreaseCircle marked={starred} draw={justStarred} />
+              </button>
+            </div>
           </div>
         </div>
       </article>

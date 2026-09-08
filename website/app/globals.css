@@ -269,8 +269,8 @@
        them back that far only makes the product look like it has no pictures,
        which is the thing being fixed.
     */
-    opacity: var(--shot-dim, 0.42);
-    filter: grayscale(var(--shot-grey, 0.55)) contrast(1.05);
+    opacity: var(--shot-dim, 0.32);
+    filter: grayscale(var(--shot-grey, 0.6)) contrast(1.02) brightness(0.86);
     transition:
       opacity 260ms ease,
       filter 260ms ease;
@@ -379,6 +379,12 @@
      plus 42% is more than the whole of a 68px cell, so both scrims meet in the
      middle and the picture underneath may as well not be there. The cap is
      roughly the height the text actually occupies.
+
+     This absolute version is for the decorative sheets, whose captions are one
+     absolutely positioned host label. A real frame on the sheet uses
+     .frame-caption below instead, because there the caption is a stack of a
+     title, a note, tags and a date, and how tall that comes out is not
+     something a fixed height can know in advance.
   */
   .frame-scrim {
     bottom: 0;
@@ -392,13 +398,45 @@
     );
   }
 
+  /*
+     The caption on a real frame, carrying its own scrim.
+
+     In the flow rather than absolutely positioned, so the darkening is exactly
+     as tall as the words are plus a fade above them. A three line title on a
+     wide frame and a one line title on a narrow one both come out right, which
+     a fixed height cannot do: sized for the tall case it swamps the small
+     frames, sized for the small case the title runs off the top of it.
+
+     margin-top: auto is what holds it at the bottom of the frame.
+  */
+  .frame-caption {
+    margin-top: auto;
+    /*
+       Bled out to the frame's edges, past the 8px and var(--rail) of padding
+       .frame carries. Without this the gradient stops at the content box and
+       a strip of bright screenshot shows underneath and beside the caption,
+       which on a white page is a hard line right under the title.
+    */
+    margin-right: calc(var(--rail) * -1);
+    margin-bottom: -8px;
+    margin-left: calc(var(--rail) * -1);
+    padding: 28px var(--rail) 8px;
+    background: linear-gradient(
+      to top,
+      var(--color-gutter) 0%,
+      rgba(5, 5, 6, 0.97) 48%,
+      rgba(5, 5, 6, 0.86) 72%,
+      rgba(5, 5, 6, 0) 100%
+    );
+  }
+
   .frame-scrim-top {
     top: 0;
-    height: min(42%, 30px);
+    height: min(42%, 34px);
     background: linear-gradient(
       to bottom,
-      rgba(5, 5, 6, 0.88) 0%,
-      rgba(5, 5, 6, 0.5) 45%,
+      rgba(5, 5, 6, 0.95) 0%,
+      rgba(5, 5, 6, 0.72) 45%,
       rgba(5, 5, 6, 0) 100%
     );
   }
@@ -529,7 +567,12 @@
   }
 
   /* --------------------------------------------------------------------------
-     The plate. Where an image is actually exposed.
+     The plate. A picture shown as a picture, at its own size.
+     --------------------------------------------------------------------------
+     The sheet does not use this any more: a frame there is the photograph, so
+     the capture fills it. What is left are the two places a picture really is
+     an object on a page rather than the ground under one, the editor's preview
+     and the field you attach a picture with.
      -------------------------------------------------------------------------- */
   .plate {
     position: relative;
@@ -552,73 +595,6 @@
 
   .frame-hover:hover .plate img {
     filter: grayscale(0.1) contrast(1.06) brightness(1.06);
-  }
-
-  /*
-     A tall frame with no capture.
-     ------------------------------------------------------------------------
-     Unexposed stock with the site's own mark held in the middle of it. An
-     imported bookmark has no screenshot and never will unless you visit it
-     with the extension, and a couple of hundred of those left the sheet
-     looking like it had failed to load rather than like film waiting to be
-     exposed.
-     ------------------------------------------------------------------------ */
-  .plate-unexposed {
-    display: grid;
-    place-items: center;
-    background:
-      repeating-linear-gradient(45deg, var(--line-hatch) 0 6px, rgba(233, 229, 220, 0) 6px 12px),
-      var(--color-gutter);
-  }
-
-  /* Selector has to out weigh `.plate img` above, which is (0,1,1) and would
-     otherwise stretch a 16px favicon across the whole plate with object-fit
-     cover. That is exactly what it did: a wall of blurry upscaled logos. */
-  .plate img.plate-mark {
-    width: 38px;
-    height: 38px;
-    object-fit: contain;
-    /* Small source art, so keep the browser from smoothing it into mush. */
-    image-rendering: -webkit-optimize-contrast;
-    /* Held back so it reads as a watermark on the stock rather than as the
-       subject of the frame, and it brightens with the rest on hover. */
-    opacity: 0.5;
-    filter: grayscale(0.5) contrast(1.04);
-    transition: opacity 260ms ease, filter 260ms ease;
-  }
-
-  .frame-hover:hover .plate img.plate-mark {
-    opacity: 0.85;
-    filter: grayscale(0.1) contrast(1.06);
-  }
-
-  /* No favicon either, so the host's initial stands in, the same letter the
-     stamp beside the address already uses. */
-  .plate-letter {
-    font-family: var(--font-head);
-    font-size: 30px;
-    font-weight: 500;
-    line-height: 1;
-    color: var(--line-focus);
-    transition: color 260ms ease;
-  }
-
-  .frame-hover:hover .plate-letter {
-    color: var(--color-silver-dim);
-  }
-
-  .plate-empty {
-    display: grid;
-    place-items: center;
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--color-silver-dim);
-    background: repeating-linear-gradient(
-      45deg,
-      var(--line-hatch) 0 6px,
-      rgba(233, 229, 220, 0) 6px 12px
-    );
   }
 
   /* --------------------------------------------------------------------------
