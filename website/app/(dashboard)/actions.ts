@@ -8,6 +8,7 @@ import * as bookmarks from "~/lib/db/bookmarks"
 import * as folders from "~/lib/db/folders"
 import { discoverFaviconUrl } from "~/lib/favicon"
 import { hostnameOf, normalizeUrl, parseTags } from "~/lib/format"
+import { IMPORT_CHUNK, type ImportedBookmark } from "~/lib/netscape"
 
 export type ActionResult = { ok: true } | { ok: false; error: string }
 
@@ -200,4 +201,78 @@ export async function deleteFolder(id: string): Promise<ActionResult> {
 
   refresh()
   return { ok: true }
+}
+
+export type ImportResult =
+  | { ok: true; added: number; alreadyHad: number }
+  | { ok: false; error: string }
+
+/**
+ * Takes one chunk of a browser export.
+ *
+ * The file is parsed in the browser and posted in pieces rather than uploaded
+ * whole, for two reasons. A big export would otherwise be one enormous request
+ * that a serverless function has to finish inside its time limit, and posting
+ * in pieces is what lets the dialog show progress rather than sitting on a
+ * spinner for a minute with nothing to say.
+ *
+ * The chunk is re-validated here rather than trusted. This is a public
+ * endpoint: the browser did the parsing, but nothing stops a caller posting
+ * whatever it likes straight to it.
+ */
+export async function importChunk(items: ImportedBookmark[]): Promise<ImportResult> {
+  const user = await requireUser()
+
+  if (!Array.isArray(items)) return { ok: false, error: "That is not a list of bookmarks." }
+  if (items.length > IMPORT_CHUNK) {
+    return { ok: false, error: `Send at most ${IMPORT_CHUNK} at a time.` }
+  }
+
+  /*
+   * Folders arrive as names, because the file has names and the browser has no
+   * idea what a Bento folder id is. Resolving them here keeps the client from
+   * having to create folders itself, and one read plus one create per new name
+   * is cheap when a whole export rarely has more than a few dozen.
+   */
+  const wanted = new Set(items.map((i) => i.folder?.trim()).filter((n): n is string => Boolean(n)))
+  const byName = new Map<string, string>()
+
+  for (const folder of await folders.listFolders(user.id)) {
+    byName.set(folder.name.toLowerCase(), folder.id)
+  }
+
+  for (const name of wanted) {
+    if (byName.has(name.toLowerCase())) continue
+
+    const made = await folders.createFolder(user.id, name)
+    if (made.ok) byName.set(made.folder.name.toLowerCase(), made.folder.id)
+  }
+
+  const prepared: bookmarks.ImportInput[] = []
+
+  for (const item of items) {
+    // The same guard the manual add form uses. The client already applied it,
+    // which is not a reason to skip it on the server.
+    const url = normalizeUrl(String(item.url ?? ""))
+    if (!url) continue
+
+    const icon = String(item.faviconUrl ?? "")
+    prepared.push({
+      url,
+      title: String(item.title ?? "").slice(0, 500),
+      // Only a data image survives, for the same reason the parser says: this
+      // ends up in an img src and it came out of a file.
+      faviconUrl: icon.startsWith("data:image/") && icon.length <= 8192 ? icon : null,
+      folderId: item.folder ? (byName.get(item.folder.trim().toLowerCase()) ?? null) : null,
+      addedAt: typeof item.addedAt === "string" && !Number.isNaN(Date.parse(item.addedAt)) ? item.addedAt : null
+    })
+  }
+
+  try {
+    const outcome = await bookmarks.importBookmarks(user.id, prepared)
+    revalidatePath("/app")
+    return { ok: true, ...outcome }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Could not save those." }
+  }
 }

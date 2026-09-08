@@ -4,6 +4,7 @@ import { cache } from "react"
 
 import { FolderRail } from "~/components/FolderRail"
 import { GetExtension } from "~/components/GetExtension"
+import { ImportPanel } from "~/components/ImportPanel"
 import { Pagination } from "~/components/Pagination"
 import { Sheet } from "~/components/Sheet"
 import { TrayToolbar } from "~/components/TrayToolbar"
@@ -215,7 +216,12 @@ function EmptySheet({ filtering }: { filtering: boolean }) {
           : "Press Add to expose one by hand, or put the extension on your toolbar and capture whatever page you are looking at."}
       </p>
 
-      {filtering ? null : <GetExtension compact />}
+      {filtering ? null : (
+        <>
+          <GetExtension compact />
+          <ImportPanel compact />
+        </>
+      )}
     </div>
   )
 }

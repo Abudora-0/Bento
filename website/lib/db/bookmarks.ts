@@ -380,3 +380,72 @@ export async function recentBookmarks(userId: string, limit: number): Promise<Bo
 
   return rows.map((row) => rowToBookmark(row as Row))
 }
+
+export type ImportInput = {
+  url: string
+  title: string
+  faviconUrl: string | null
+  folderId: string | null
+  /** The browser's own add date, so an imported roll keeps its order. */
+  addedAt: string | null
+}
+
+export type ImportOutcome = { added: number; alreadyHad: number }
+
+/**
+ * Writes a chunk of imported bookmarks in one round trip.
+ *
+ * Not a loop over upsertByUrl. That reads before it writes, which is two round
+ * trips per bookmark, and a browser export of a couple of thousand would spend
+ * hours doing nothing but waiting on the network. This leans on the
+ * (user_id, url) unique index instead and lets SQLite decide, so the whole
+ * chunk is a single batch.
+ *
+ * An import never destroys anything. A url you already have keeps its title,
+ * its folder, its note, its tags and its screenshot, and only fills in a
+ * favicon if it had none. The import is a way to arrive with your history, not
+ * a way to overwrite the work you have done since.
+ */
+export async function importBookmarks(userId: string, items: ImportInput[]): Promise<ImportOutcome> {
+  if (items.length === 0) return { added: 0, alreadyHad: 0 }
+
+  const stamp = now()
+
+  /*
+   * One read to find out which of these are already here, so the caller can be
+   * told what actually happened. The upsert below would be correct without it,
+   * but it could not tell you the difference between added and merged.
+   */
+  const { rows } = await db().execute({
+    sql: `select url from bookmarks where user_id = ? and url in (${placeholders(items.length)})`,
+    args: [userId, ...items.map((i) => i.url)]
+  })
+  const existing = new Set(rows.map((r) => String((r as Row).url)))
+
+  await db().batch(
+    items.map((item) => ({
+      sql: `insert into bookmarks
+              (id, user_id, url, title, favicon_url, screenshot_url, tags, notes, folder_id, starred, created_at, updated_at)
+            values (?, ?, ?, ?, ?, null, '[]', '', ?, 0, ?, ?)
+            on conflict (user_id, url) do update set
+              favicon_url = coalesce(bookmarks.favicon_url, excluded.favicon_url),
+              updated_at  = excluded.updated_at`,
+      args: [
+        newId(),
+        userId,
+        item.url,
+        item.title.slice(0, 500),
+        item.faviconUrl,
+        item.folderId,
+        // Falling back to now keeps the sort stable for a browser that wrote
+        // no date rather than leaving a null in a column the tray orders on.
+        item.addedAt ?? stamp,
+        stamp
+      ]
+    })),
+    "write"
+  )
+
+  const alreadyHad = existing.size
+  return { added: items.length - alreadyHad, alreadyHad }
+}

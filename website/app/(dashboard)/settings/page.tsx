@@ -3,6 +3,7 @@ import Link from "next/link"
 
 import { ApiTokenPanel } from "~/components/ApiTokenPanel"
 import { GetExtension } from "~/components/GetExtension"
+import { ImportPanel } from "~/components/ImportPanel"
 import { requireUser } from "~/lib/current-user"
 import { isoDate } from "~/lib/format"
 
@@ -40,6 +41,7 @@ export default async function SettingsPage() {
       <div className="mt-3 space-y-3">
         <GetExtension />
         <ApiTokenPanel initialToken={user.api_token} />
+        <ImportPanel />
       </div>
 
       <div className="mt-6">

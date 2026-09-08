@@ -15,7 +15,8 @@ const {
   editBookmark,
   bulkSetStarred,
   bulkSetFolder,
-  bulkDelete
+  bulkDelete,
+  importBookmarks
 } = await import("./bookmarks.ts")
 const { createFolder, listFolders, renameFolder, deleteFolder } = await import("./folders.ts")
 
@@ -346,5 +347,154 @@ describe("deleteBookmark", () => {
 
   it("returns null for a bookmark that is not there", async () => {
     assert.equal(await deleteBookmark(alice.id, "00000000-0000-0000-0000-000000000000"), null)
+  })
+})
+
+describe("importBookmarks", () => {
+  it("writes a chunk and says how many were new", async () => {
+    const result = await importBookmarks(alice.id, [
+      { url: "https://import.example.com/a", title: "A", faviconUrl: null, folderId: null, addedAt: null },
+      { url: "https://import.example.com/b", title: "B", faviconUrl: null, folderId: null, addedAt: null }
+    ])
+
+    assert.deepEqual(result, { added: 2, alreadyHad: 0 })
+  })
+
+  it("counts a url you already have rather than duplicating it", async () => {
+    await importBookmarks(alice.id, [
+      { url: "https://import.example.com/dupe", title: "First", faviconUrl: null, folderId: null, addedAt: null }
+    ])
+
+    const again = await importBookmarks(alice.id, [
+      { url: "https://import.example.com/dupe", title: "Second", faviconUrl: null, folderId: null, addedAt: null }
+    ])
+
+    assert.deepEqual(again, { added: 0, alreadyHad: 1 })
+
+    const tray = await loadTray(alice.id, { ...listing, q: "import.example.com/dupe" })
+    assert.equal(tray.total, 1)
+  })
+
+  it("never overwrites what is already there", async () => {
+    /*
+     * The point of the whole feature is arriving with your history, not losing
+     * the work you have done since. A re-import must not clobber a title you
+     * fixed, a note you wrote, a folder you filed it in, or a star.
+     */
+    const created = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://import.example.com/mine",
+      title: "The title I chose",
+      notes: "My note",
+      tags: ["mine"]
+    })
+    await setStarred(alice.id, created.bookmark.id, true)
+
+    await importBookmarks(alice.id, [
+      {
+        url: "https://import.example.com/mine",
+        title: "Whatever the browser called it",
+        faviconUrl: null,
+        folderId: null,
+        addedAt: null
+      }
+    ])
+
+    const kept = await getBookmark(alice.id, created.bookmark.id)
+    assert.equal(kept?.title, "The title I chose")
+    assert.equal(kept?.notes, "My note")
+    assert.deepEqual(kept?.tags, ["mine"])
+    assert.equal(kept?.starred, true)
+  })
+
+  it("fills in a missing favicon but does not replace one", async () => {
+    const withNone = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://import.example.com/noicon",
+      faviconUrl: null
+    })
+    const withOne = await upsertByUrl(alice.id, {
+      ...base,
+      url: "https://import.example.com/hasicon",
+      faviconUrl: "https://cdn.example.com/original.png"
+    })
+
+    await importBookmarks(alice.id, [
+      {
+        url: "https://import.example.com/noicon",
+        title: "",
+        faviconUrl: "data:image/png;base64,AAAA",
+        folderId: null,
+        addedAt: null
+      },
+      {
+        url: "https://import.example.com/hasicon",
+        title: "",
+        faviconUrl: "data:image/png;base64,BBBB",
+        folderId: null,
+        addedAt: null
+      }
+    ])
+
+    assert.equal((await getBookmark(alice.id, withNone.bookmark.id))?.favicon_url, "data:image/png;base64,AAAA")
+    assert.equal(
+      (await getBookmark(alice.id, withOne.bookmark.id))?.favicon_url,
+      "https://cdn.example.com/original.png"
+    )
+  })
+
+  it("keeps the browser's own date, so an imported roll is in the right order", async () => {
+    const old = new Date("2019-04-02T10:00:00.000Z").toISOString()
+
+    await importBookmarks(alice.id, [
+      { url: "https://import.example.com/old", title: "Old", faviconUrl: null, folderId: null, addedAt: old }
+    ])
+
+    const tray = await loadTray(alice.id, { ...listing, q: "import.example.com/old" })
+    assert.equal(tray.rows[0].created_at, old)
+  })
+
+  it("files into a folder when it is given one", async () => {
+    const folder = await createFolder(alice.id, "Imported dev")
+    assert.ok(folder.ok)
+    if (!folder.ok) return
+
+    await importBookmarks(alice.id, [
+      {
+        url: "https://import.example.com/filed",
+        title: "Filed",
+        faviconUrl: null,
+        folderId: folder.folder.id,
+        addedAt: null
+      }
+    ])
+
+    const tray = await loadTray(alice.id, { ...listing, folder: folder.folder.id })
+    assert.equal(tray.total, 1)
+  })
+
+  it("does nothing at all for an empty chunk", async () => {
+    assert.deepEqual(await importBookmarks(alice.id, []), { added: 0, alreadyHad: 0 })
+  })
+
+  it("cannot reach into another account", async () => {
+    // Both accounts import the same address. Each gets its own row, and
+    // neither can see the other, which is what (user_id, url) is for.
+    const url = "https://import.example.com/shared"
+
+    await importBookmarks(alice.id, [{ url, title: "Alice", faviconUrl: null, folderId: null, addedAt: null }])
+    const forBob = await importBookmarks(bob.id, [
+      { url, title: "Bob", faviconUrl: null, folderId: null, addedAt: null }
+    ])
+
+    assert.deepEqual(forBob, { added: 1, alreadyHad: 0 }, "bob's import must not see alice's row")
+
+    const aliceTray = await loadTray(alice.id, { ...listing, q: "import.example.com/shared" })
+    const bobTray = await loadTray(bob.id, { ...listing, q: "import.example.com/shared" })
+
+    assert.equal(aliceTray.total, 1)
+    assert.equal(bobTray.total, 1)
+    assert.equal(aliceTray.rows[0].title, "Alice")
+    assert.equal(bobTray.rows[0].title, "Bob")
   })
 })
