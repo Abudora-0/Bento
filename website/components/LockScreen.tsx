@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react"
 
 import { signIn, signUp } from "~/app/lock/actions"
 
+import { FrameShot } from "./FrameShot"
 import { GreaseCircle, Letters, Mark } from "./Wordmark"
 
 type Phase = "closed" | "opening" | "rejected"
@@ -353,7 +354,11 @@ function RevealField({
 }
 
 /**
- * What is printed on the right lid: a contact sheet.
+ * What is printed on the right lid: a contact sheet, with real pictures on it.
+ *
+ * Nobody has signed in yet, so it cannot be your sheet. It used to be empty
+ * frames instead, which made the lid look unfinished on the one screen every
+ * visitor sees. These are the same captures the landing page prints.
  *
  * The half used to be empty until the opening animation ran, which on a wide
  * screen meant half the page was doing nothing at all and the whole thing read
@@ -368,14 +373,14 @@ function RevealField({
  */
 function PrintedLid({ opening }: { opening: boolean }) {
   const cells = [
-    { span: 3, tall: true, exposed: true, marked: true },
-    { span: 3, tall: true, exposed: false, marked: false },
-    { span: 2, tall: false, exposed: true, marked: false },
-    { span: 4, tall: false, exposed: false, marked: false },
-    { span: 2, tall: false, exposed: false, marked: false },
-    { span: 4, tall: true, exposed: true, marked: false },
-    { span: 3, tall: false, exposed: false, marked: false },
-    { span: 3, tall: false, exposed: true, marked: false }
+    { span: 3, tall: true, slug: "react", marked: true },
+    { span: 3, tall: true, slug: "sqlite", marked: false },
+    { span: 2, tall: false, slug: "turso", marked: false },
+    { span: 4, tall: false, slug: "mdn", marked: false },
+    { span: 2, tall: false, slug: "plasmo", marked: false },
+    { span: 4, tall: true, slug: "nextjs", marked: false },
+    { span: 3, tall: false, slug: "nodejs", marked: false },
+    { span: 3, tall: false, slug: "typescript", marked: false }
   ]
 
   return (
@@ -393,17 +398,19 @@ function PrintedLid({ opening }: { opening: boolean }) {
       <div className="mt-3 grid grid-cols-6 gap-2">
         {cells.map((cell, i) => (
           <div
-            key={i}
-            className={cell.exposed ? "frame relative" : "frame-blank relative"}
+            key={cell.slug}
+            className="frame relative overflow-hidden"
             style={{
               gridColumn: `span ${cell.span}`,
               height: cell.tall ? 84 : 52,
               animation: `develop-in 700ms ${240 + i * 70}ms backwards`
             }}
           >
-            {cell.exposed ? (
-              <span className="frame-no absolute left-1.5 top-1">{String(i + 1).padStart(2, "0")}</span>
-            ) : null}
+            <FrameShot src={`/sheet/${cell.slug}.jpg`} scrim="bottom" tone="lit" />
+
+            <span className="frame-no absolute left-1.5 top-1">
+              {String(i + 1).padStart(2, "0")}
+            </span>
 
             {cell.marked ? (
               <span className="absolute bottom-1 right-1 h-7 w-7">

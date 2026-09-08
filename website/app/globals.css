@@ -181,6 +181,15 @@
     );
     background-position: 0 4px;
     pointer-events: none;
+    /*
+       Above .frame-shot, below the full frame anchor at z-10.
+
+       Without this the two rails end up on opposite sides of the picture:
+       ::before renders as the first child of the box and would paint under it,
+       ::after renders as the last and would paint over it. One rail showing
+       and one gone reads as a rendering fault rather than a missing rule.
+    */
+    z-index: 1;
   }
 
   .frame::before {
@@ -221,6 +230,196 @@
     box-shadow:
       inset 0 0 0 1px var(--color-grease),
       inset 0 0 0 3px var(--line-hatch);
+  }
+
+  /* --------------------------------------------------------------------------
+     The picture, filling the frame.
+     --------------------------------------------------------------------------
+     A frame is the photograph, so the capture is the frame's ground rather
+     than a plate stacked above the caption. That is what lets the short
+     compartments carry a picture at all: at 112px tall there was never room
+     for an image block and two lines of text one after the other.
+
+     Used by the sheet, by the landing page hero and by the lock screen, so all
+     three read as the same object.
+     -------------------------------------------------------------------------- */
+  .frame-shot {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: #000;
+    /* Under the rails at z-1 and the frame anchor at z-10. */
+    z-index: 0;
+  }
+
+  .frame-shot img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    object-position: top;
+    /*
+       Desaturated so a screenshot reads as a print rather than as chrome, and
+       held back so what is written on top of it stays readable.
+
+       How far back depends on how much is written there. A frame on the sheet
+       carries a title, a host, tags, a folder and a date, so it needs the
+       picture well behind them. The decorative sheets on the landing page and
+       the lock screen carry a number and a host and nothing else, so holding
+       them back that far only makes the product look like it has no pictures,
+       which is the thing being fixed.
+    */
+    opacity: var(--shot-dim, 0.42);
+    filter: grayscale(var(--shot-grey, 0.55)) contrast(1.05);
+    transition:
+      opacity 260ms ease,
+      filter 260ms ease;
+  }
+
+  /*
+     Brought forward, but printed rather than pasted in.
+
+     brightness is doing real work here and is not decoration. Half of any
+     honest set of real pages are white documentation sites, and a white
+     rectangle at this opacity reads as a hole burned in the lid rather than as
+     a frame on it. Pulling the highlights down keeps a bright page and a dark
+     one in the same register, which is what a contact sheet of one roll looks
+     like.
+  */
+  .frame-shot-lit {
+    --shot-dim: 0.82;
+    --shot-grey: 0.32;
+  }
+
+  .frame-shot-lit img {
+    filter: grayscale(var(--shot-grey)) contrast(1.04) brightness(0.72);
+  }
+
+  .frame-hover:hover .frame-shot img {
+    opacity: var(--shot-dim-hover, 0.72);
+    filter: grayscale(0.15) contrast(1.06);
+  }
+
+  /*
+     After the rule above, and that order is the whole of it.
+
+     Both selectors are (0,3,1), so specificity does not separate them and the
+     later one simply wins. Written before it, this rule would look correct and
+     do nothing. That exact tie is what once stretched favicons across a plate.
+  */
+  .frame-hover:hover .frame-shot-lit img {
+    opacity: 0.95;
+    filter: grayscale(0.12) contrast(1.06) brightness(0.9);
+  }
+
+  /* No capture. Unexposed stock with the site's own mark held in the middle,
+     which is a frame waiting to be exposed rather than a hole in the sheet. */
+  .frame-shot-unexposed {
+    display: grid;
+    place-items: center;
+    background:
+      repeating-linear-gradient(45deg, var(--line-hatch) 0 6px, rgba(233, 229, 220, 0) 6px 12px),
+      var(--color-gutter);
+  }
+
+  /* Has to out weigh .frame-shot img above, which is (0,1,1) and would
+     otherwise stretch a 16px favicon across the whole frame with object-fit
+     cover. That is exactly what it did to .plate once: a wall of blurry
+     upscaled logos. */
+  .frame-shot img.frame-mark {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    /* Small source art, so keep the browser from smoothing it into mush. */
+    image-rendering: -webkit-optimize-contrast;
+    opacity: 0.4;
+    filter: grayscale(0.5) contrast(1.04);
+  }
+
+  .frame-hover:hover .frame-shot img.frame-mark {
+    opacity: 0.75;
+    filter: grayscale(0.1) contrast(1.06);
+  }
+
+  /* No favicon either, so the host's initial stands in, the same letter the
+     stamp beside the address already uses. */
+  .frame-shot-letter {
+    font-family: var(--font-head);
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--line-focus);
+    transition: color 260ms ease;
+  }
+
+  .frame-hover:hover .frame-shot-letter {
+    color: var(--color-silver-dim);
+  }
+
+  /*
+     The two scrims.
+
+     Text now sits over a photograph, and a photograph can be any brightness at
+     all, so legibility cannot be left to the picture being dark. These are the
+     gutter fading out, not a new colour, so nothing here steps off the ladder.
+  */
+  .frame-scrim,
+  .frame-scrim-top {
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /*
+     Capped in pixels as well as percent.
+
+     A percentage alone is fine on a tall frame and wrong on a short one: 72%
+     plus 42% is more than the whole of a 68px cell, so both scrims meet in the
+     middle and the picture underneath may as well not be there. The cap is
+     roughly the height the text actually occupies.
+  */
+  .frame-scrim {
+    bottom: 0;
+    height: min(72%, 58px);
+    background: linear-gradient(
+      to top,
+      var(--color-gutter) 0%,
+      rgba(5, 5, 6, 0.92) 32%,
+      rgba(5, 5, 6, 0.62) 62%,
+      rgba(5, 5, 6, 0) 100%
+    );
+  }
+
+  .frame-scrim-top {
+    top: 0;
+    height: min(42%, 30px);
+    background: linear-gradient(
+      to bottom,
+      rgba(5, 5, 6, 0.88) 0%,
+      rgba(5, 5, 6, 0.5) 45%,
+      rgba(5, 5, 6, 0) 100%
+    );
+  }
+
+  /*
+     Everything else in a frame sits above both.
+
+     The rails have to out rank the picture, and the content has to out rank
+     the rails, or a frame number at left-2 disappears under the left rail.
+     Stated once here rather than as a z-index on every element that happens to
+     end up inside a frame, because the ones that get forgotten are the plain
+     text ones nobody thinks of as layered.
+
+     position: relative with no offsets moves nothing, it only makes z-index
+     apply. Tailwind's own utilities still win over this, since the utilities
+     layer is ordered after components, which is how BookmarkCell's anchor
+     keeps its z-10 and its controls keep their z-20.
+  */
+  .frame > *:not(.frame-shot):not(.frame-scrim):not(.frame-scrim-top) {
+    position: relative;
+    z-index: 2;
   }
 
   .frame-blank {

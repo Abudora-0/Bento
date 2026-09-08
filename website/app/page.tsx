@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import { FrameShot } from "~/components/FrameShot"
 import { GetExtension } from "~/components/GetExtension"
 import { Letters, Mark } from "~/components/Wordmark"
 import { REPO_URL, installRoute } from "~/lib/links"
@@ -271,20 +272,27 @@ export default function Landing() {
 /**
  * The product, shown rather than described.
  *
- * A still arrangement of frames rather than a screenshot, so it cannot go
- * stale, needs no asset, and is drawn from the same classes the real sheet
- * uses. Decorative, so it is hidden from assistive technology, and the shapes
- * are fixed rather than random because a value that differs between the server
+ * Real captures rather than a screenshot of the app, so it cannot go stale the
+ * next time the sheet is restyled, and rather than empty frames, which is what
+ * this was: six compartments with nothing in them, on the front page of a
+ * product whose whole premise is that a saved page has a picture.
+ *
+ * Decorative, so it is hidden from assistive technology, and the shapes are
+ * fixed rather than random because a value that differs between the server
  * render and the client one is a hydration mismatch.
+ *
+ * The host labels are written here by hand rather than read from a manifest
+ * the capture script wrote. A page's own title is its words, not ours, and at
+ * least one of these has an em dash in it.
  */
 function ContactSheetPreview() {
   const cells = [
-    { span: 4, tall: true, exposed: true },
-    { span: 2, tall: true, exposed: false },
-    { span: 2, tall: false, exposed: true },
-    { span: 4, tall: false, exposed: false },
-    { span: 3, tall: false, exposed: true },
-    { span: 3, tall: false, exposed: false }
+    { span: 4, tall: true, slug: "nextjs", host: "nextjs.org" },
+    { span: 2, tall: true, slug: "react", host: "react.dev" },
+    { span: 2, tall: false, slug: "turso", host: "turso.tech" },
+    { span: 4, tall: false, slug: "tailwind", host: "tailwindcss.com" },
+    { span: 3, tall: false, slug: "typescript", host: "typescriptlang.org" },
+    { span: 3, tall: false, slug: "lobsters", host: "lobste.rs" }
   ]
 
   return (
@@ -297,17 +305,22 @@ function ContactSheetPreview() {
       <div className="mt-3 grid grid-cols-6 gap-2.5">
         {cells.map((cell, i) => (
           <div
-            key={i}
-            className={cell.exposed ? "frame relative" : "frame-blank relative"}
+            key={cell.slug}
+            className="frame frame-hover relative overflow-hidden"
             style={{
               gridColumn: `span ${cell.span}`,
               height: cell.tall ? 104 : 68,
               animation: `develop-in 700ms ${120 + i * 80}ms backwards`
             }}
           >
-            {cell.exposed ? (
-              <span className="frame-no absolute left-2 top-1.5">{String(i + 1).padStart(2, "0")}</span>
-            ) : null}
+            <FrameShot src={`/sheet/${cell.slug}.jpg`} scrim="both" tone="lit" />
+
+            <span className="frame-no absolute left-2 top-1.5">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span className="frame-stamp absolute bottom-1.5 left-2 right-2 truncate">
+              {cell.host}
+            </span>
           </div>
         ))}
       </div>
