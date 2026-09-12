@@ -301,22 +301,25 @@
   }
 
   /*
-     Brought forward, but printed rather than pasted in.
+     Brought forward, close to how the page actually looks.
 
-     brightness is doing real work here and is not decoration. Half of any
-     honest set of real pages are white documentation sites, and a white
-     rectangle at this opacity reads as a hole burned in the lid rather than as
-     a frame on it. Pulling the highlights down keeps a bright page and a dark
-     one in the same register, which is what a contact sheet of one roll looks
-     like.
+     These are the first pictures anybody sees, on the landing page and the
+     lock screen, and they exist to look good rather than to stay out of the
+     way of a caption, which is the opposite job a real frame has. Full
+     opacity was tried at 0.82 with brightness pulled to 0.72 to tame the
+     occasional bright documentation site, and it did that, but it also
+     crushed every already dark screenshot toward black, which is most of
+     them. The result read as gloomy rather than as a contact sheet. A slight
+     dip is enough: the two scrim gradients already carry the number and the
+     host, so the picture itself is not holding up any text.
   */
   .frame-shot-lit {
-    --shot-dim: 0.82;
-    --shot-grey: 0.32;
+    --shot-dim: 0.96;
+    --shot-grey: 0.1;
   }
 
   .frame-shot-lit img {
-    filter: grayscale(var(--shot-grey)) contrast(1.04) brightness(0.72);
+    filter: grayscale(var(--shot-grey)) contrast(1.02) brightness(0.94);
   }
 
   .frame-hover:hover .frame-shot img {
@@ -332,8 +335,8 @@
      do nothing. That exact tie is what once stretched favicons across a plate.
   */
   .frame-hover:hover .frame-shot-lit img {
-    opacity: 0.95;
-    filter: grayscale(0.12) contrast(1.06) brightness(0.9);
+    opacity: 1;
+    filter: grayscale(0.02) contrast(1.04) brightness(1.02);
   }
 
   /* No capture. Unexposed stock with the site's own mark held in the middle,
