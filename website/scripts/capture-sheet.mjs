@@ -15,7 +15,7 @@
  *
  *   node scripts/capture-sheet.mjs
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 
 import puppeteer from "puppeteer-core"
@@ -34,18 +34,32 @@ const OUT = resolve(process.cwd(), "public/sheet")
 const VIEWPORT = { width: 1280, height: 800, deviceScaleFactor: 0.5 }
 const QUALITY = 60
 
-/** Recognisable to anyone who would run this, and none of them are ours. */
+/*
+ * Picked for being genuinely light themed, not for being popular on their
+ * own. A marketing homepage that defaults to a dark theme stays dark no
+ * matter how the frame around it is tuned, brightness and opacity can only
+ * push a picture so far before it stops looking like the page. Several
+ * otherwise obvious choices did not make it here for exactly that reason
+ * (react.dev, nextjs.org, tailwindcss.com, turso.tech, developer.mozilla.org
+ * and getbootstrap.com all render dark regardless of a light colour scheme
+ * request), and a few more answered with a Cloudflare bot check instead of a
+ * page (npmjs.com, producthunt.com, canva.com, unsplash.com).
+ *
+ * Also picked for having no dark region anywhere in the captured height, not
+ * only at the top. FrameShot centres this tone rather than pinning it to the
+ * top, so a page with one dark panel partway down (a code sample, a screenshot
+ * embedded in the page, a photograph) can still land in the crop even though
+ * the page reads as bright overall.
+ */
 const PAGES = [
-  { slug: "nextjs", url: "https://nextjs.org/" },
-  { slug: "react", url: "https://react.dev/" },
-  { slug: "tailwind", url: "https://tailwindcss.com/" },
+  { slug: "pypi", url: "https://pypi.org/" },
+  { slug: "jest", url: "https://jestjs.io/" },
+  { slug: "vue", url: "https://vuejs.org/" },
+  { slug: "eslint", url: "https://eslint.org/" },
   { slug: "sqlite", url: "https://www.sqlite.org/index.html" },
-  { slug: "turso", url: "https://turso.tech/" },
-  { slug: "mdn", url: "https://developer.mozilla.org/en-US/" },
+  { slug: "expressjs", url: "https://expressjs.com/" },
   { slug: "typescript", url: "https://www.typescriptlang.org/" },
-  { slug: "nodejs", url: "https://nodejs.org/en" },
-  { slug: "lobsters", url: "https://lobste.rs/" },
-  { slug: "plasmo", url: "https://www.plasmo.com/" }
+  { slug: "postgresql", url: "https://www.postgresql.org/" }
 ]
 
 const CANDIDATES = [
@@ -80,6 +94,9 @@ let taken = 0
 for (const page of PAGES) {
   const tab = await browser.newPage()
   await tab.setViewport(VIEWPORT)
+  // A handful of these sites are light by default only when the OS asks for
+  // it. Without this the capture machine's own dark mode would decide.
+  await tab.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }])
 
   try {
     await tab.goto(page.url, { waitUntil: "networkidle2", timeout: 45000 })
@@ -105,8 +122,8 @@ await browser.close()
 
 /*
  * No manifest is written on purpose. The titles these pages carry are their
- * words, not ours, and at least one of them has an em dash in it, which this
- * project does not allow anywhere. The host labels the components print are
+ * words, not ours, and a scraped one could carry a banned character in
+ * without anyone choosing it. The host labels the components print are
  * written by hand next to the markup that uses them.
  */
 console.log(`\n${taken} of ${PAGES.length} captured into public/sheet`)

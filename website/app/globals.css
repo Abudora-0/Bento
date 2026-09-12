@@ -309,9 +309,20 @@
      opacity was tried at 0.82 with brightness pulled to 0.72 to tame the
      occasional bright documentation site, and it did that, but it also
      crushed every already dark screenshot toward black, which is most of
-     them. The result read as gloomy rather than as a contact sheet. A slight
-     dip is enough: the two scrim gradients already carry the number and the
-     host, so the picture itself is not holding up any text.
+     them. The result read as gloomy rather than as a contact sheet.
+
+     No scrim on these two, unlike the sheet. A gradient sized for a 112px to
+     236px real frame is most of the height on a 52px to 104px decorative one,
+     which is what was actually reading as a black tint, not the picture
+     underneath it. The frame number and the host name carry a tight text
+     shadow instead, see .shot-label, which costs a few pixels around the
+     letters rather than a third of the card.
+
+     Centred rather than top aligned, unlike the sheet's own frames. A frame
+     with a caption wants its top edge, which is usually a page's header. A
+     frame with nothing written on it wants whatever the page is actually
+     about, which sits further down. Top aligned here just meant every card
+     showing the same navigation bar.
   */
   .frame-shot-lit {
     --shot-dim: 0.96;
@@ -319,7 +330,31 @@
   }
 
   .frame-shot-lit img {
+    object-position: center;
     filter: grayscale(var(--shot-grey)) contrast(1.02) brightness(0.94);
+  }
+
+  /*
+     A tight shadow, not a background band.
+
+     For the frame number and the host name on the two decorative sheets, now
+     that neither carries a scrim behind it. Not the same thing as the drop
+     shadows this design otherwise refuses: those are structural, standing in
+     for a border or a surface. This is a caption on a photograph, sized to
+     the letters rather than to the card, which a solid background band is
+     not.
+  */
+  .shot-label {
+    text-shadow:
+      0 1px 2px rgba(5, 5, 6, 0.95),
+      0 0 5px rgba(5, 5, 6, 0.85);
+  }
+
+  /* Same job as .shot-label, for the grease pencil circle on the lock screen,
+     which is a stroke rather than a glyph and so needs a drop shadow rather
+     than a text shadow to read the same way against a bright picture. */
+  .shot-mark {
+    filter: drop-shadow(0 0 3px rgba(5, 5, 6, 0.9));
   }
 
   .frame-hover:hover .frame-shot img {

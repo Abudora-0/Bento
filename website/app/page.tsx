@@ -282,17 +282,18 @@ export default function Landing() {
  * render and the client one is a hydration mismatch.
  *
  * The host labels are written here by hand rather than read from a manifest
- * the capture script wrote. A page's own title is its words, not ours, and at
- * least one of these has an em dash in it.
+ * the capture script wrote. A page's own title is its words, not ours, and a
+ * scraped one is exactly the kind of text that can carry a banned character
+ * in without anyone choosing it.
  */
 function ContactSheetPreview() {
   const cells = [
-    { span: 4, tall: true, slug: "nextjs", host: "nextjs.org" },
-    { span: 2, tall: true, slug: "react", host: "react.dev" },
-    { span: 2, tall: false, slug: "turso", host: "turso.tech" },
-    { span: 4, tall: false, slug: "tailwind", host: "tailwindcss.com" },
-    { span: 3, tall: false, slug: "typescript", host: "typescriptlang.org" },
-    { span: 3, tall: false, slug: "lobsters", host: "lobste.rs" }
+    { span: 4, tall: true, slug: "pypi", host: "pypi.org" },
+    { span: 2, tall: true, slug: "jest", host: "jestjs.io" },
+    { span: 2, tall: false, slug: "vue", host: "vuejs.org" },
+    { span: 4, tall: false, slug: "eslint", host: "eslint.org" },
+    { span: 3, tall: false, slug: "sqlite", host: "sqlite.org" },
+    { span: 3, tall: false, slug: "expressjs", host: "expressjs.com" }
   ]
 
   return (
@@ -313,12 +314,12 @@ function ContactSheetPreview() {
               animation: `develop-in 700ms ${120 + i * 80}ms backwards`
             }}
           >
-            <FrameShot src={`/sheet/${cell.slug}.jpg`} scrim="both" tone="lit" />
+            <FrameShot src={`/sheet/${cell.slug}.jpg`} scrim="none" tone="lit" />
 
-            <span className="frame-no absolute left-2 top-1.5">
+            <span className="shot-label frame-no absolute left-2 top-1.5">
               {String(i + 1).padStart(2, "0")}
             </span>
-            <span className="frame-stamp absolute bottom-1.5 left-2 right-2 truncate">
+            <span className="shot-label frame-stamp absolute bottom-1.5 left-2 right-2 truncate">
               {cell.host}
             </span>
           </div>
